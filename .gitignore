@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# Node (if shells add JS frontends later)
+node_modules/
+dist/
+build/
+
+# Secrets — never commit
+.env
+.env.local
+.env.*.local
+secrets/
+*.pem
+*.key
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Audit logs (written at runtime, not committed)
+audit/
+logs/

@@ -1,0 +1,22 @@
+[project]
+name = "macie"
+version = "0.1.0"
+description = "Multi-AI Consensus Intelligence Engine"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["engine/tests", "core_shell/tests", "prod_shell/tests"]
+pythonpath = [
+    ".",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
