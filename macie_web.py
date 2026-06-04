@@ -4,7 +4,7 @@ MACIE Web Server
 Serves the MACIE browser interface at http://localhost:5000/macie
 
 Run from C:\SageForge\macie:
-    python macie_web.py
+    python macie_web.pys
 
 Then visit http://localhost:5000/macie in your browser.
 Pete Jr. reaches it through core.actionforgelabs.com/macie via Cloudflare Tunnel.
@@ -840,4 +840,4 @@ if __name__ == "__main__":
     print("  MACIE Web Server")
     print("  http://localhost:5000/macie")
     print("=" * 60)
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=5001, debug=False)
