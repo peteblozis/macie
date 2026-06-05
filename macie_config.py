@@ -20,7 +20,7 @@ When Anthropic resolves the PeteAI, LLC account:
 SPEC_ROSTER = ["claude", "chatgpt"]          # MACIE v1 per signed spec
 
 # Set to False the moment Anthropic API access is restored.
-SUBSTITUTION_ACTIVE = True
+SUBSTITUTION_ACTIVE = False
 
 # Roster used when substitution is active. Replace "claude" with "gemini".
 SUBSTITUTED_ROSTER = ["gemini", "chatgpt"]
