@@ -489,7 +489,7 @@ HTML = """<!DOCTYPE html>
 
     <div class="query-footer">
       <div class="model-pills">
-        <div class="model-pill sub">gemini → claude</div>
+        <div class="model-pill">claude</div>
         <div class="model-pill">chatgpt</div>
       </div>
       <button id="submit-btn" onclick="submitQuery()">
@@ -565,7 +565,7 @@ async function submitQuery() {
   document.getElementById('progress-bar').classList.add('active');
   document.getElementById('step-indicator').classList.add('active');
 
-  setProgress(10, 'Step 1/3 — Asking Gemini...');
+  setProgress(10, 'Step 1/3 — Asking Claude...');
 
   try {
     const resp = await fetch('/macie/query', {
@@ -642,7 +642,7 @@ Your job is to:
 
 USER QUESTION: {question}
 
-MODEL A (Gemini) RESPONSE:
+MODEL A (Claude) RESPONSE:
 {response_a}
 
 MODEL B (ChatGPT) RESPONSE:
@@ -658,18 +658,35 @@ AGREEMENTS: [key shared points]
 DIVERGENCES: [key differences, or "None significant"]"""
 
 
-def call_gemini(query: str):
+def call_claude(query: str):
+    provider = os.environ.get("CLAUDE_PROVIDER", "anthropic").lower()
     try:
-        from google import genai
-        from google.genai import types
-        api_key = os.environ.get("GEMINI_API_KEY", "")
-        if not api_key:
-            return "", "GEMINI_API_KEY not set"
-        client = genai.Client(api_key=api_key)
-        config = types.GenerateContentConfig(max_output_tokens=2048, temperature=0.3)
-        response = client.models.generate_content(
-            model="gemini-2.5-flash", contents=query, config=config)
-        return response.text or "", None
+        if provider == "openrouter":
+            from openai import OpenAI
+            api_key = os.environ.get("OPENROUTER_API_KEY", "")
+            if not api_key:
+                return "", "OPENROUTER_API_KEY not set"
+            model = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
+            client = OpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1")
+            response = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": query}],
+                max_tokens=2048,
+            )
+            return response.choices[0].message.content or "", None
+        else:
+            import anthropic
+            api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+            if not api_key:
+                return "", "ANTHROPIC_API_KEY not set"
+            model = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
+            client = anthropic.Anthropic(api_key=api_key)
+            message = client.messages.create(
+                model=model,
+                max_tokens=2048,
+                messages=[{"role": "user", "content": query}],
+            )
+            return message.content[0].text or "", None
     except Exception as e:
         return "", str(e)
 
@@ -778,24 +795,24 @@ def query():
     shell = data.get("shell", "core")
     request_id = str(uuid.uuid4())[:8]
 
-    gemini_text, gemini_error = call_gemini(user_query)
+    claude_text, claude_error = call_claude(user_query)
     chatgpt_text, chatgpt_error = call_chatgpt(user_query)
 
-    if gemini_error and chatgpt_error:
+    if claude_error and chatgpt_error:
         return jsonify({
-            "error": f"Both models failed. Gemini: {gemini_error}. ChatGPT: {chatgpt_error}"
+            "error": f"Both models failed. Claude: {claude_error}. ChatGPT: {chatgpt_error}"
         }), 500
 
     synthesis_text = None
-    if gemini_text and chatgpt_text:
-        synthesis_text = synthesize(user_query, gemini_text, chatgpt_text)
+    if claude_text and chatgpt_text:
+        synthesis_text = synthesize(user_query, claude_text, chatgpt_text)
 
     if synthesis_text:
         parsed = parse_synthesis(synthesis_text)
     else:
         parsed = {
             "synthesized_answer": (
-                (gemini_text or "") + ("\n\n---\n\n" + chatgpt_text if chatgpt_text else "")
+                (claude_text or "") + ("\n\n---\n\n" + chatgpt_text if chatgpt_text else "")
             ),
             "confidence": "low",
             "rationale": "Synthesis unavailable — showing raw model responses.",
@@ -820,7 +837,7 @@ def query():
         "substitution_active": cfg.SUBSTITUTION_ACTIVE,
         **parsed,
         "model_statuses": [
-            {"name": "gemini", "ok": not gemini_error},
+            {"name": "claude", "ok": not claude_error},
             {"name": "chatgpt", "ok": not chatgpt_error},
         ],
     })
