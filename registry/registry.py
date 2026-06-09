@@ -18,8 +18,40 @@ def _registry_path(path=None) -> Path:
     return Path(os.environ.get("MACIE_REGISTRY_PATH", str(Path(__file__).parent / "agent-registry.json")))
 
 
+SEED_AGENTS = [
+    {
+        "caller_id": "INT-FF-001",
+        "product": "ForgeFactory",
+        "instance": "core",
+        "lanes": ["claude", "chatgpt", "gemini"],
+        "registered_at": "2026-06-09T00:00:00+00:00",
+        "status": "active",
+    },
+    {
+        "caller_id": "INT-PL-001",
+        "product": "PromptLessons",
+        "instance": "core",
+        "lanes": ["claude"],
+        "registered_at": "2026-06-09T00:00:00+00:00",
+        "status": "active",
+    },
+    {
+        "caller_id": "EXT-CF-001",
+        "product": "CallForge",
+        "instance": "production",
+        "lanes": ["claude", "chatgpt", "gemini"],
+        "registered_at": "2026-06-09T00:00:00+00:00",
+        "status": "active",
+    },
+]
+
+
 def load_registry(path=None) -> dict:
     p = _registry_path(path)
+    if not p.exists():
+        data = {"agents": SEED_AGENTS}
+        save_registry(data, path)
+        return data
     with open(p, encoding="utf-8") as f:
         return json.load(f)
 
