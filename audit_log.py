@@ -34,6 +34,7 @@ def log_run(
     confidence: str | None = None,
     note: str | None = None,
     log_path: str | None = None,
+    caller_id: str | None = None,
 ) -> None:
     """Append one audit record. Never modifies existing records."""
     path = Path(log_path or DEFAULT_LOG_PATH)
@@ -42,6 +43,7 @@ def log_run(
     record = {
         "ts": datetime.now(timezone.utc).isoformat(),
         "request_id": request_id,
+        "caller_id": caller_id if caller_id else "UNREGISTERED",
         "user_prompt_preview": user_prompt[:200],
         "roster": roster,
         "substitution_active": substitution_active,

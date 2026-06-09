@@ -30,3 +30,6 @@ secrets/
 # Audit logs (written at runtime, not committed)
 audit/
 logs/
+
+# Agent registry (runtime data, never committed)
+registry/agent-registry.json

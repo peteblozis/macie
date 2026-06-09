@@ -12,7 +12,7 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["engine/tests", "core_shell/tests", "prod_shell/tests"]
+testpaths = ["engine/tests", "core_shell/tests", "prod_shell/tests", "registry/tests"]
 pythonpath = [
     ".",
 ]

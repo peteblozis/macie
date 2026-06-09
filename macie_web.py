@@ -24,8 +24,17 @@ sys.path.insert(0, str(PROJECT_ROOT / "engine"))
 
 import macie_config as cfg
 from audit_log import log_run
+from registry import registry as agent_registry
 
 app = Flask(__name__)
+
+
+def _require_admin_key():
+    """Return a 401 response tuple if the request lacks a valid admin key, else None."""
+    admin_key = os.environ.get("MACIE_ADMIN_KEY", "")
+    if not admin_key or request.headers.get("X-Admin-Key") != admin_key:
+        return jsonify({"error": "Unauthorized"}), 401
+    return None
 
 # ── HTML template ─────────────────────────────────────────────────────────────
 
@@ -794,6 +803,7 @@ def query():
     user_query = data["query"].strip()
     shell = data.get("shell", "core")
     request_id = str(uuid.uuid4())[:8]
+    caller_id = request.headers.get("X-Caller-ID")
 
     claude_text, claude_error = call_claude(user_query)
     chatgpt_text, chatgpt_error = call_chatgpt(user_query)
@@ -829,6 +839,7 @@ def query():
         shell=shell,
         success=True,
         confidence=parsed["confidence"],
+        caller_id=caller_id,
     )
 
     return jsonify({
@@ -850,6 +861,42 @@ def status():
         "roster": cfg.current_roster(),
         "summary": cfg.substitution_summary(),
     })
+
+
+@app.route("/macie/register", methods=["POST"])
+def register():
+    auth_err = _require_admin_key()
+    if auth_err:
+        return auth_err
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "JSON body required"}), 400
+
+    product = data.get("product", "").strip()
+    lanes = data.get("lanes")
+    instance = data.get("instance", "production")
+
+    if not product:
+        return jsonify({"error": "product is required"}), 400
+    if not lanes or not isinstance(lanes, list):
+        return jsonify({"error": "lanes is required and must be a list"}), 400
+
+    try:
+        entry = agent_registry.register_agent(product, lanes, instance=instance)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    return jsonify(entry), 201
+
+
+@app.route("/macie/agents", methods=["GET"])
+def agents():
+    auth_err = _require_admin_key()
+    if auth_err:
+        return auth_err
+
+    return jsonify({"agents": agent_registry.get_agents()})
 
 
 if __name__ == "__main__":
