@@ -210,6 +210,9 @@ Write-Host '══════════════════════�
 Write-Host "  New key label : $KeyLabel"
 Write-Host "  Render service: $ServiceId"
 Write-Host "  Production URL: $MACIEUrl"
+Write-Host "  Hard spend cap: $KeyLimitUsd USD / $KeyLimitReset"
+Write-Host "  Allowed models: $($AllowedModels -join ', ')"
+Write-Host "  Allowed providers: $($AllowedProviders -join ', ')"
 if ($OldKeyId) {
     Write-Host "  Revokes id    : $OldKeyId (old key)"
 } else {
