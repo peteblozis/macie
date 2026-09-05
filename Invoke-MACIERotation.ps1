@@ -239,7 +239,63 @@ if ($approval -notmatch '^[Yy]$') {
     exit 0
 }
 
-Write-Audit 'APPROVED' "Rotation approved by Pete for $KeyLabel"
+Write-Audit 'APPROVED' "Rotation approved by Pete for $KeyLabel; hard limit=$KeyLimitUsd USD/$KeyLimitReset"
+
+# ── Step 4b: Enforce native OpenRouter guardrail ─────────────────────────────
+
+if (-not $NewKeyId) {
+    Abort 'New OpenRouter key has no hash/id; cannot attach mandatory guardrail'
+}
+
+Write-Step 'Step 4b — Enforcing native OpenRouter model/provider/budget guardrail'
+$guardrailBody = @{
+    name = 'MACIE-Render-Native-Control'
+    description = 'SageForge native-control boundary for MACIE Render'
+    allowed_models = $AllowedModels
+    allowed_providers = $AllowedProviders
+    limit_usd = $KeyLimitUsd
+    reset_interval = $KeyLimitReset
+}
+
+try {
+    if ($GuardrailId) {
+        $guardrailResp = Invoke-RestMethod `
+            -Uri     "https://openrouter.ai/api/v1/guardrails/$GuardrailId" `
+            -Method  PATCH `
+            -Headers @{ Authorization = "Bearer $MgmtKey"; 'Content-Type' = 'application/json' } `
+            -Body    (ConvertTo-Json $guardrailBody -Depth 5 -Compress)
+    } else {
+        $guardrailResp = Invoke-RestMethod `
+            -Uri     'https://openrouter.ai/api/v1/guardrails' `
+            -Method  POST `
+            -Headers @{ Authorization = "Bearer $MgmtKey"; 'Content-Type' = 'application/json' } `
+            -Body    (ConvertTo-Json $guardrailBody -Depth 5 -Compress)
+        $GuardrailId = $guardrailResp.data.id
+        if (-not $GuardrailId) { throw 'Guardrail creation returned no id' }
+        Set-EnvValue -Path $EnvPath -Key 'OPENROUTER_GUARDRAIL_ID' -Value $GuardrailId
+    }
+
+    Invoke-RestMethod `
+        -Uri     "https://openrouter.ai/api/v1/guardrails/$GuardrailId/assignments/keys" `
+        -Method  POST `
+        -Headers @{ Authorization = "Bearer $MgmtKey"; 'Content-Type' = 'application/json' } `
+        -Body    (ConvertTo-Json @{ key_hashes = @($NewKeyId) } -Compress) | Out-Null
+
+    Write-OK "Native guardrail assigned — id: $GuardrailId"
+    Write-Audit 'NATIVE-CONTROL' "Guardrail=$GuardrailId; limit=$KeyLimitUsd/$KeyLimitReset; models=$($AllowedModels -join ','); providers=$($AllowedProviders -join ',')"
+} catch {
+    Write-Warn "Native-control configuration failed: $($_.Exception.Message)"
+    try {
+        Invoke-RestMethod `
+            -Uri     "https://openrouter.ai/api/v1/keys/$NewKeyId" `
+            -Method  DELETE `
+            -Headers @{ Authorization = "Bearer $MgmtKey" } | Out-Null
+        Write-Warn 'New key revoked because native-control configuration did not complete'
+    } catch {
+        Write-Warn 'New key cleanup also failed; new key must be reviewed before retrying'
+    }
+    Abort 'OpenRouter native controls were not established; production key rotation stopped'
+}
 
 # ── Step 5: Update OPENROUTER_API_KEY on Render ───────────────────────────────
 
