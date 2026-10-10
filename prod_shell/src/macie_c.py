@@ -59,13 +59,29 @@ def review_document(
     successful_ids = sorted({
         output["model_id"] for output in model_outputs if output["success"]
     })
+    versions = {
+        o["model_id"]: o["model_version"].lower() for o in model_outputs
+        if o["success"]
+    }
+    # Lane labels can be misleading when a router substitutes providers.
+    # An OpenAI substitute on the Claude lane is not independent consensus.
+    provider_verified = (
+        "claude" in versions.get("claude", "")
+        and ("gpt" in versions.get("chatgpt", "") or
+             "openai" in versions.get("chatgpt", ""))
+        and versions.get("claude") != versions.get("chatgpt")
+    )
+    is_fixture = any("fixture" in v for v in versions.values())
     consensus_valid = (
         len(successful_ids) == 2
         and all(id in successful_ids for id in REVIEW_ROSTER)
+        and provider_verified
         and bool(result.synthesized_answer.strip())
         and not result.synthesized_answer.startswith("Synthesizer unavailable.")
     )
     status = (
+        ("FIXTURE_WITH_DIVERGENCES" if result.divergences else "FIXTURE_ONLY")
+        if consensus_valid and is_fixture else
         ("CONSENSUS_WITH_DIVERGENCES" if result.divergences else "CONSENSUS")
         if consensus_valid else "NON-CONSENSUS"
     )
@@ -73,11 +89,14 @@ def review_document(
         "edition": "MACIE C",
         "status": status,
         "reason": (
-            "Two distinct independent model reviews and synthesis available."
+            "Two distinct named model reviews and synthesis available; verify actual provider routing separately."
             if consensus_valid else
-            "Two independent model reviews and a valid synthesis were not confirmed."
+            "Independent Claude/OpenAI provider identities and a valid synthesis were not confirmed."
         ),
         "review_goal": goal,
+        "provider_verified_by_model_name": provider_verified,
+        "execution_mode": "fixture" if is_fixture else "live_attempt",
+        "live_acceptance_passed": consensus_valid and not is_fixture,
         "models_requested": list(REVIEW_ROSTER),
         "models_succeeded": successful_ids,
         "model_outputs": model_outputs,
