@@ -899,6 +899,41 @@ def agents():
     return jsonify({"agents": agent_registry.get_agents()})
 
 
+@app.route("/macie/c/review", methods=["POST"])
+def macie_c_review():
+    """Private-gated initial MACIE C endpoint. Disabled unless configured."""
+    import hmac
+
+    if os.environ.get("MACIE_C_ENABLED") != "1":
+        return jsonify({"error": "MACIE C is not enabled"}), 503
+
+    expected = os.environ.get("MACIE_C_API_KEY", "")
+    supplied = request.headers.get("X-MACIE-C-Key", "")
+    if not expected or not hmac.compare_digest(expected, supplied):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    if request.content_length is not None and request.content_length > 250_000:
+        return jsonify({"error": "Payload too large"}), 413
+
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return jsonify({"error": "A JSON object is required"}), 400
+
+    try:
+        from prod_shell.src.macie_c import review_document
+        result = review_document(
+            body.get("document", ""),
+            body.get("goal", "Review and improve this document, explaining changes."),
+        )
+        return jsonify(result), (200 if result["status"] != "NON-CONSENSUS" else 503)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception:
+        # Do not send model provider or environment details to the caller.
+        app.logger.exception("MACIE C execution failed")
+        return jsonify({"error": "Review engine unavailable"}), 503
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("  MACIE Web Server")
