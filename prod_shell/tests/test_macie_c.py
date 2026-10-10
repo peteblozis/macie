@@ -11,7 +11,13 @@ from prod_shell.src.macie_c import review_document
 
 
 PUBLIC_TEST_DOCUMENT = (
-    "Proposed WP-CLI plan: import 100 draft fsa_lesson posts. Add checks for "
+    "Official WP-CLI documentation: "
+    "https://developer.wordpress.org/cli/commands/post/create/ "
+    "explains that wp post create supports --post_type, --post_status, "
+    "--meta_input and --porcelain. "
+    "https://developer.wordpress.org/cli/commands/db/export/ "
+    "documents database backup export. "
+    "Proposed plan: import 100 draft fsa_lesson posts. Add checks for "
     "wp executable, WordPress core installed, and fsa_lesson post type. "
     "Then import all 100 and declare it safe because preflight passed. "
     "No backup, duplicate IDs, retries or final reconciliation are specified."
