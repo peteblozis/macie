@@ -87,7 +87,9 @@ def test_document_review_runs_through_real_engine_with_fixture_reviewers():
     )
 
     assert result["edition"] == "MACIE C"
-    assert result["status"] == "CONSENSUS_WITH_DIVERGENCES"
+    assert result["status"] == "FIXTURE_WITH_DIVERGENCES"
+    assert result["execution_mode"] == "fixture"
+    assert result["live_acceptance_passed"] is False
     assert result["models_succeeded"] == ["chatgpt", "claude"]
     assert len(synth.received) == 1
     assert PUBLIC_TEST_DOCUMENT in reviewer_a.received[0]
@@ -115,6 +117,28 @@ def test_one_failed_model_returns_non_consensus_not_false_success():
     assert result["status"] == "NON-CONSENSUS"
     assert result["synthesized_review"] == ""
     assert result["models_succeeded"] == ["chatgpt"]
+
+
+def test_substituted_openai_model_must_not_be_called_claude_consensus():
+    class WrongProvider(StaticReviewer):
+        def invoke(self, query, options=None):
+            response = super().invoke(query, options)
+            response.model_version = "openai/gpt-4o"
+            return response
+
+    result = review_document(
+        PUBLIC_TEST_DOCUMENT,
+        options={
+            "adapters": {
+                "claude": WrongProvider("claude", "I agree"),
+                "chatgpt": StaticReviewer("chatgpt", "I agree"),
+            },
+            "synthesizer_adapter": StaticSynthesizer(),
+        },
+    )
+    assert result["status"] == "NON-CONSENSUS"
+    assert result["provider_verified_by_model_name"] is False
+    assert result["live_acceptance_passed"] is False
 
 
 @pytest.mark.parametrize("document", ["", " ", 7, "x" * 50001])
