@@ -39,12 +39,21 @@ def _macie_c_one_time_live_smoke():
         "import safe after pre-flight. No backup, duplicate prevention, "
         "partial-failure recovery, or final reconciliation is described."
     )
+    # A non-sensitive, short test summary may be supplied at runtime without
+    # publishing customer text in the public repository. Never use real client
+    # names, addresses, confidential pricing, or sensitive data here.
+    sample = os.environ.get("MACIE_C_SMOKE_DOCUMENT") or sample
+    goal = (
+        os.environ.get("MACIE_C_SMOKE_GOAL")
+        or "Analyze this existing implementation proposal; identify faults, "
+           "retain sound ideas, and recommend an improved executable plan."
+    )
     try:
-        result = review_document(
-            sample,
-            "Analyze this existing implementation proposal; identify faults, "
-            "retain sound ideas, and recommend an improved executable plan."
-        )
+        if len(sample) > 9000 or len(goal) > 1800:
+            raise ValueError("Live smoke document/goal exceeds safe limits")
+        import hashlib
+        result = review_document(sample, goal, options={"max_tokens": 3500})
+        synthesized = result.get("synthesized_review", "")
         safe = {
             "event": "MACIE_C_LIVE_SMOKE_RESULT",
             "status": result.get("status"),
@@ -56,9 +65,18 @@ def _macie_c_one_time_live_smoke():
                 for x in result.get("model_outputs", [])
             ],
             "confidence": result.get("confidence"),
+            "source_sha256": hashlib.sha256(sample.encode("utf-8")).hexdigest(),
             "disagreements": result.get("divergences"),
-            "synthesis_excerpt": result.get("synthesized_review", "")[:1400],
-            "fallback_excerpt": result.get("raw_fallback", "")[:250] if result.get("status") != "CONSENSUS" else "",
+            "agreement_map": result.get("agreement_map"),
+            # This log is for the deliberately PUBLIC, nonsensitive trial only.
+            # Do not use this smoke-test path for actual client documents.
+            "model_review_excerpts": [
+                {"model": x["model_id"], "text": x.get("raw_review", "")[:1800]}
+                for x in result.get("model_outputs", [])
+            ],
+            "synthesis_full": synthesized[:14000],
+            "synthesis_truncated": len(synthesized) > 14000,
+            "fallback_excerpt": result.get("raw_fallback", "")[:500] if not result.get("live_acceptance_passed") else "",
         }
         print(json.dumps(safe, ensure_ascii=True), flush=True)
     except Exception as exc:
