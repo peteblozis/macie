@@ -17,7 +17,7 @@ ESCALATION_TASKS = {
 }
 
 _DEFAULT_CLAUDE_ORDER = ["openrouter", "vercel_ai_gateway", "bedrock", "anthropic_direct"]
-_DEFAULT_CHATGPT_ORDER = ["openai_direct"]
+_DEFAULT_CHATGPT_ORDER = ["openai_direct", "openrouter_chatgpt"]
 _DEFAULT_GEMINI_ORDER = ["openrouter_gemini"]
 
 
@@ -65,6 +65,10 @@ class _Config:
     @property
     def openai_model(self) -> str:
         return _env("OPENAI_MODEL", "gpt-4.1")
+
+    @property
+    def openrouter_chatgpt_model(self) -> str:
+        return _env("OPENROUTER_CHATGPT_MODEL", "openai/gpt-4.1")
 
     # Gemini lane (via OpenRouter)
     @property
