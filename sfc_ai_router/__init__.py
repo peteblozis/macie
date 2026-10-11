@@ -23,6 +23,7 @@ from .router import AiRouter
 from .health import scan_customer_facing, assert_no_internal_terms
 from .adapters import (
     OpenRouterAdapter,
+    OpenRouterChatGPTAdapter,
     VercelAiGatewayAdapter,
     BedrockAdapter,
     AnthropicDirectAdapter,
@@ -34,6 +35,7 @@ from .adapters import (
 # Unconfigured adapters (missing keys / missing boto3) are skipped automatically.
 ai_router = AiRouter(adapters=[
     OpenRouterAdapter(),
+    OpenRouterChatGPTAdapter(),
     VercelAiGatewayAdapter(),
     BedrockAdapter(),
     AnthropicDirectAdapter(),
@@ -49,6 +51,7 @@ __all__ = [
     "RouterError",
     "UsageInfo",
     "OpenRouterAdapter",
+    "OpenRouterChatGPTAdapter",
     "VercelAiGatewayAdapter",
     "BedrockAdapter",
     "AnthropicDirectAdapter",
