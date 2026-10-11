@@ -222,9 +222,9 @@ def _run_job(job_id: str, document: str, goal: str):
 
 @bp.before_request
 def protect_portal():
+    g.macie_c_nonce = secrets.token_urlsafe(18)
     if not _is_ready():
         return jsonify({"error": "MACIE C login is not yet configured."}), 503
-    g.macie_c_nonce = secrets.token_urlsafe(18)
 
 
 @bp.after_request
