@@ -29,6 +29,53 @@ from registry import registry as agent_registry
 app = Flask(__name__)
 
 
+def _macie_c_one_time_live_smoke():
+    """Opt-in live MACIE C proof with PUBLIC sample only; never user files."""
+    import logging
+    from prod_shell.src.macie_c import review_document
+    sample = (
+        "Proposal: import 100 WordPress custom-post-type draft lessons after "
+        "checking WP-CLI is installed and the post type exists. Declare the "
+        "import safe after pre-flight. No backup, duplicate prevention, "
+        "partial-failure recovery, or final reconciliation is described."
+    )
+    try:
+        result = review_document(
+            sample,
+            "Analyze this existing implementation proposal; identify faults, "
+            "retain sound ideas, and recommend an improved executable plan."
+        )
+        safe = {
+            "event": "MACIE_C_LIVE_SMOKE_RESULT",
+            "status": result.get("status"),
+            "live_acceptance_passed": result.get("live_acceptance_passed"),
+            "execution_mode": result.get("execution_mode"),
+            "model_ids": result.get("models_succeeded"),
+            "model_versions": [
+                {"lane": x["model_id"], "version": x["model_version"], "ok": x["success"]}
+                for x in result.get("model_outputs", [])
+            ],
+            "confidence": result.get("confidence"),
+            "disagreements": result.get("divergences"),
+            "synthesis_excerpt": result.get("synthesized_review", "")[:1400],
+            "fallback_excerpt": result.get("raw_fallback", "")[:250] if result.get("status") != "CONSENSUS" else "",
+        }
+        print(json.dumps(safe, ensure_ascii=True), flush=True)
+    except Exception as exc:
+        logging.exception("MACIE_C_LIVE_SMOKE_FAILED: %s", type(exc).__name__)
+
+
+if os.environ.get("MACIE_C_SMOKE_ON_BOOT", "") == "1":
+    # Single worker for this service; no credentials or private data logged.
+    import threading
+    threading.Thread(
+        target=_macie_c_one_time_live_smoke,
+        name="macie-c-live-smoke",
+        daemon=True,
+    ).start()
+
+
+
 def _require_admin_key():
     """Return a 401 response tuple if the request lacks a valid admin key, else None."""
     admin_key = os.environ.get("MACIE_ADMIN_KEY", "")
