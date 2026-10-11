@@ -71,7 +71,10 @@ def review_document(
              "openai" in versions.get("chatgpt", ""))
         and versions.get("claude") != versions.get("chatgpt")
     )
-    is_fixture = any("fixture" in v for v in versions.values())
+    injected_adapters = bool(options and (
+        "adapters" in options or "synthesizer_adapter" in options
+    ))
+    is_fixture = injected_adapters or any("fixture" in v for v in versions.values())
     consensus_valid = (
         len(successful_ids) == 2
         and all(id in successful_ids for id in REVIEW_ROSTER)
@@ -95,7 +98,7 @@ def review_document(
         ),
         "review_goal": goal,
         "provider_verified_by_model_name": provider_verified,
-        "execution_mode": "fixture" if is_fixture else "live_attempt",
+        "execution_mode": "injected_test" if injected_adapters else ("fixture" if is_fixture else "live_attempt"),
         "live_acceptance_passed": consensus_valid and not is_fixture,
         "models_requested": list(REVIEW_ROSTER),
         "models_succeeded": successful_ids,

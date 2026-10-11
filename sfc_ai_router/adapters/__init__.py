@@ -1,6 +1,6 @@
 """SageForge AI Router — adapters package."""
 from .base import ProviderAdapter
-from .openrouter import OpenRouterAdapter
+from .openrouter import OpenRouterAdapter, OpenRouterChatGPTAdapter
 from .providers import (
     VercelAiGatewayAdapter,
     BedrockAdapter,
@@ -12,6 +12,7 @@ from .providers import (
 __all__ = [
     "ProviderAdapter",
     "OpenRouterAdapter",
+    "OpenRouterChatGPTAdapter",
     "VercelAiGatewayAdapter",
     "BedrockAdapter",
     "AnthropicDirectAdapter",

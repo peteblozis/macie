@@ -115,3 +115,21 @@ class OpenRouterAdapter(ProviderAdapter):
             latency_ms=latency_ms,
             request_id=request_id,
         )
+
+
+class OpenRouterChatGPTAdapter(OpenRouterAdapter):
+    """ChatGPT lane via OpenRouter, using the SAME key as the Claude lane.
+
+    Only OpenAI-family model IDs are permitted, so loss of the direct
+    OpenAI API key cannot silently turn a two-model comparison into a
+    single-provider/model answer.
+    """
+
+    name = "openrouter_chatgpt"
+    lane = "chatgpt"
+
+    def resolve_model(self, req: RouterRequest) -> str:
+        model = req.model_override or config.openrouter_chatgpt_model
+        if not model.startswith("openai/"):
+            raise ValueError("ChatGPT lane requires an openai/ model through OpenRouter")
+        return model

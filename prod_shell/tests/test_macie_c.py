@@ -94,7 +94,7 @@ def test_document_review_runs_through_real_engine_with_fixture_reviewers():
 
     assert result["edition"] == "MACIE C"
     assert result["status"] == "FIXTURE_WITH_DIVERGENCES"
-    assert result["execution_mode"] == "fixture"
+    assert result["execution_mode"] == "injected_test"
     assert result["live_acceptance_passed"] is False
     assert result["models_succeeded"] == ["chatgpt", "claude"]
     assert len(synth.received) == 1
