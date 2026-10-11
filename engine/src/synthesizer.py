@@ -159,6 +159,45 @@ def _fallback_synthesis(outputs: list[ModelOutput]) -> dict[str, Any]:
     }
 
 
+def _valid_synthesis(parsed: object) -> bool:
+    """Validate the promised JSON shape before it can become a synthesis.
+
+    Parsing JSON is insufficient: arrays, nulls and incorrect field types
+    must follow the same honest fallback path as unparseable responses.
+    """
+    if not isinstance(parsed, dict):
+        return False
+    answer = parsed.get("synthesized_answer")
+    confidence = parsed.get("confidence")
+    if not isinstance(answer, str) or not answer.strip():
+        return False
+    if not isinstance(confidence, str) or confidence.lower() not in {c.value for c in Confidence}:
+        return False
+    if not isinstance(parsed.get("confidence_rationale"), str):
+        return False
+    agreements = parsed.get("agreement_map")
+    if not isinstance(agreements, dict):
+        return False
+    for claim, models in agreements.items():
+        if not isinstance(claim, str) or not isinstance(models, list):
+            return False
+        if not all(isinstance(model, str) for model in models):
+            return False
+    divergences = parsed.get("divergences")
+    if not isinstance(divergences, list):
+        return False
+    for divergence in divergences:
+        if not isinstance(divergence, dict) or not isinstance(divergence.get("claim"), str):
+            return False
+        positions = divergence.get("positions")
+        if not isinstance(positions, dict):
+            return False
+        if not all(isinstance(model, str) and isinstance(position, str)
+                   for model, position in positions.items()):
+            return False
+    return True
+
+
 def synthesize(
     outputs: list[ModelOutput],
     synthesizer: ModelAdapter,
@@ -199,10 +238,10 @@ def synthesize(
         return _build_result(parsed, outputs)
 
     parsed = _parse_synth_response(synth_response.text)
-    if parsed is None:
+    if not _valid_synthesis(parsed):
         parsed = _fallback_synthesis(outputs)
         parsed["confidence_rationale"] = (
-            "Synthesizer returned non-JSON output. Returning fallback synthesis."
+            "Synthesizer returned invalid structured output. Returning fallback synthesis."
         )
 
     return _build_result(parsed, outputs)

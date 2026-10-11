@@ -57,14 +57,16 @@ def _resolve_adapter(model_id: str, options: dict) -> ModelAdapter:
 def _invoke_one(adapter: ModelAdapter, query: str, options: dict) -> ModelOutput:
     """Invoke a single adapter and normalize the response into a ModelOutput."""
     response = adapter.invoke(query, options=options)
+    # A completed request with no usable text is not a successful review.
+    valid_text = isinstance(response.text, str) and bool(response.text.strip())
     return ModelOutput(
         model_id=adapter.model_id,
         model_version=response.model_version,
-        raw_text=response.text,
+        raw_text=response.text if valid_text else "",
         latency_ms=response.latency_ms,
         tokens_in=response.tokens_in,
         tokens_out=response.tokens_out,
-        error=response.error,
+        error=response.error or (None if valid_text else "Empty or invalid model response"),
     )
 
 
