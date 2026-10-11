@@ -102,7 +102,18 @@ def _current_user() -> str | None:
 
 def _same_origin() -> bool:
     origin = request.headers.get("Origin", "")
-    return not origin or origin.rstrip("/") == request.host_url.rstrip("/")
+    if not origin:
+        # CSRF token is still mandatory for authenticated writes.
+        return True
+    from urllib.parse import urlsplit
+    parsed = urlsplit(origin)
+    # Render terminates TLS in front of Gunicorn; Flask may see internal
+    # HTTP even though the browser uses HTTPS. Compare browser-facing host.
+    return (
+        parsed.netloc.lower() == request.host.lower()
+        and parsed.scheme == ("http" if current_app.testing else "https")
+        and parsed.path in ("", "/")
+    )
 
 
 def _authenticated():
