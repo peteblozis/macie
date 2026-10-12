@@ -14,6 +14,7 @@ import pytest
 
 from macie_web import app
 from prod_shell.src import macie_c_portal as portal
+from prod_shell.src import customer_openrouter_keys as customer_keys
 
 
 def password_record(password: str, salt: bytes = b"abcdefghijklmnop"):
@@ -31,6 +32,8 @@ def client(monkeypatch):
         "tester@example.com": password_record("tester-pilot-strong-password"),
     }))
     monkeypatch.delenv("MACIE_ADMIN_KEY", raising=False)
+    monkeypatch.setattr(customer_keys, "verify_openrouter_key", lambda key: None)
+    customer_keys.clear_for_testing()
     app.config.update(TESTING=True, SECRET_KEY="test-secret-not-live-" * 4)
     with portal._lock:
         portal._jobs.clear()
@@ -44,6 +47,15 @@ def sign_in(client, email="owner@example.com", password="owner-pilot-strong-pass
     assert r.status_code == 200, r.json
     with client.session_transaction() as s:
         return s["macie_c_csrf"]
+
+
+def sample_key():
+    return "sk-or-" + "demo-" + ("testing" * 7)
+
+
+def _session_id(client):
+    with client.session_transaction() as sess:
+        return sess["macie_c_sid"]
 
 
 def test_disabled_by_default_if_configuration_missing(client, monkeypatch):
@@ -95,7 +107,7 @@ def test_csrf_and_origin_rejected(client):
 
 def test_real_web_submission_queue_and_owner_separation(client, monkeypatch):
     calls = []
-    def fake_review(doc, goal, options=None):
+    def fake_review(doc, goal, options=None, *, customer_openrouter_key=None):
         calls.append((doc, goal))
         return {
             "edition": "MACIE C",
@@ -110,6 +122,7 @@ def test_real_web_submission_queue_and_owner_separation(client, monkeypatch):
         }
     monkeypatch.setattr(portal, "review_document", fake_review)
     csrf = sign_in(client)
+    customer_keys.save_key("owner@example.com", _session_id(client), sample_key())
     submitted = client.post("/macie/c/review", data={
         "document": "Copilot claims that 73% faster sales are guaranteed.",
         "goal": "Review for HOMEstretch and make a stronger brochure.",
