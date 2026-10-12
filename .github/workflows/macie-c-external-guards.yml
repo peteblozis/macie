@@ -34,6 +34,8 @@ jobs:
           probes=[
               ("/macie/c", "GET", None, 200),
               ("/macie/c/review","POST",json.dumps({"document":"public test only"}).encode(),401),
+              ("/macie/c/provider","GET",None,401),
+              ("/macie/c/provider","POST",json.dumps({"api_key":"not-a-real-key"}).encode(),401),
               ("/macie/query","POST",json.dumps({"query":"do not run"}).encode(),401),
               ("/macie/c/login","POST",json.dumps({"email":"invalid@example.invalid","password":"invalid"}).encode(),401),
           ]
