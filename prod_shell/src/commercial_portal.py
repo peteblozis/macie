@@ -14,10 +14,11 @@ import secrets
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-from flask import Blueprint, current_app, g, jsonify, request, session
+from flask import Blueprint, current_app, g, jsonify, request, session, render_template_string
 
 from prod_shell.src.commercial_mail import mail_configured, send_token_message
 from prod_shell.src.commercial_store import Store, production_engine
+from prod_shell.src.commercial_template import HTML
 from prod_shell.src.customer_openrouter_keys import verify_openrouter_key
 from prod_shell.src.macie_c import review_document
 from prod_shell.src.macie_c_portal import _submitted_document, _scrub_secret
@@ -130,6 +131,18 @@ def commercial_security(response):
         "script-src 'nonce-"+g.macie_commercial_nonce+"'"
     )
     return response
+
+
+@bp.route("",methods=["GET"])
+@bp.route("/",methods=["GET"])
+def homepage():
+    identity=_who()
+    return render_template_string(
+        HTML,
+        nonce=g.macie_commercial_nonce,
+        user_id=identity[0] if identity else None,
+        csrf=session.get("commercial_csrf","") if identity else "",
+    )
 
 
 @bp.route("/status",methods=["GET"])
