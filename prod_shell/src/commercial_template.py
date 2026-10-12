@@ -29,7 +29,7 @@ pre{background:#ecf3f2;padding:16px;white-space:pre-wrap;overflow-wrap:anywhere;
 <form id="signup"><label>Email<input name="email" type="email" required autocomplete="email"></label>
 <label>Company/organization<input name="company" maxlength="160" required></label>
 <label>Password (14+ characters)<input name="password" type="password" minlength="14" required autocomplete="new-password"></label>
-<label><input name="accept_terms" type="checkbox" required style="width:auto;display:inline"> I acknowledge the product terms and privacy notice (links available at commercial launch).</label>
+<label><input name="accept_terms" type="checkbox" required style="width:auto;display:inline"> I agree to the <a href="{{ terms_url }}" target="_blank" rel="noreferrer noopener">MACIE C Terms</a> and <a href="{{ privacy_url }}" target="_blank" rel="noreferrer noopener">Privacy Policy</a>.</label>
 <button type="submit">Create account and email verification link</button></form>
 <form id="resend"><label>Resend verification link to email<input name="email" type="email" required></label>
 <button type="submit">Resend</button></form>
@@ -46,6 +46,7 @@ pre{background:#ecf3f2;padding:16px;white-space:pre-wrap;overflow-wrap:anywhere;
 <button type="submit">Save new password</button></form></section>
 <section id="account" {% if not user_id %}class="hide"{% endif %}>
 <div class="row"><div><h2>Your account</h2><p id="accountInfo">Loading...</p>
+<p><strong>MACIE C subscription:</strong> {{ plan_display }}. Your own OpenRouter model usage is billed separately by OpenRouter. Charges and cancellation details are in the <a href="{{ terms_url }}" target="_blank" rel="noreferrer noopener">Terms</a>.</p>
 <button id="logout" type="button">Sign out</button><button id="checkout" type="button">Choose and pay for subscription</button><button id="billing" type="button">Manage billing and cancel</button>
 </div><div><h2>Connect your own model key</h2>
 <p>Open an OpenRouter account, create a standard API key, and set your own spending limit. You pay OpenRouter directly for model usage. Claude and GPT use this one key, never the founder's credentials.</p>
@@ -66,7 +67,7 @@ pre{background:#ecf3f2;padding:16px;white-space:pre-wrap;overflow-wrap:anywhere;
 <h3>GPT independent review</h3><pre id="gpt"></pre>
 <button type="button" id="download">Download complete review JSON</button>
 </section>
-</main><script nonce="{{ nonce }}">
+<footer style="text-align:center;margin:30px;font-size:13px">Need help? <a href="mailto:{{ support_email }}">Customer support</a> · <a href="{{ privacy_url }}" target="_blank" rel="noreferrer noopener">Privacy</a></footer></main><script nonce="{{ nonce }}">
 (()=>{"use strict";
 const $=id=>document.getElementById(id);
 let csrf={{ csrf|tojson }},last=null;
