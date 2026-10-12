@@ -49,7 +49,7 @@ footer{text-align:center;font-size:12px;color:#687c81;margin:24px}
 <p>MACIE C uses <strong>your OpenRouter account</strong> for Claude and GPT reviews. Your provider charges apply to your own OpenRouter credits. This is separate from the MACIE C product subscription, which is not yet commercially available.</p>
 <p class="muted">Create a dedicated <strong>standard API key</strong> in your OpenRouter account. Set an account/key spending limit and keep the key private. Do not use a management or administrative key. <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer noopener">Open OpenRouter key settings</a>.</p>
 <form id="providerForm">
-<label for="providerKey">Your OpenRouter API key (stored only in this browser sign-in session)</label>
+<label for="providerKey">Your OpenRouter API key (encrypted temporarily on the server for this sign-in)</label>
 <input id="providerKey" type="password" autocomplete="off" spellcheck="false"
 placeholder="sk-or-v1-..." maxlength="400" required>
 <p id="providerError" role="alert"></p>
