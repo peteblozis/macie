@@ -11,6 +11,7 @@ terms, support route and production test are in place.
 from __future__ import annotations
 
 import os
+import json
 from typing import Any
 
 from prod_shell.src.commercial_store import Store
@@ -96,9 +97,15 @@ class StripeGateway:
             )
         except (ValueError,stripe.error.SignatureVerificationError):
             raise ValueError("Merchant webhook signature invalid.") from None
-        # Stripe's signed Event is a StripeObject, NOT a regular dict.
-        # Convert nested event data to a normal dictionary before processing.
-        verified=event.to_dict_recursive()
+        # Stripe SDK returns a StripeObject without dict.get() or
+        # to_dict_recursive() on some versions. The ORIGINAL raw JSON was
+        # just signature-verified; decode exactly those signed bytes.
+        try:
+            verified=json.loads(body)
+        except (UnicodeDecodeError,ValueError):
+            raise ValueError("Signed merchant payload is not valid JSON.") from None
+        if not isinstance(verified,dict):
+            raise ValueError("Signed merchant event must be an object.")
         # Test events must not activate a live product, or vice versa.
         if bool(verified.get("livemode"))!=self.live_mode:
             raise ValueError("Merchant event environment mismatch.")
