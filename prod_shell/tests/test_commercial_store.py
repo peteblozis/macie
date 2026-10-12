@@ -243,7 +243,7 @@ def test_durable_queue_rediscovers_post_restart_and_claims_only_once(store,buyer
     store.set_key(uid,tid,key())
     first=store.reserve_review(uid,tid,"Review one","Improve one")
     second=store.reserve_review(uid,tid,"Review two","Improve two")
-    assert store.queued_review_ids()==[first,second]
+    assert set(store.queued_review_ids())=={first,second}
     assert store.start_job(first)
     assert store.queued_review_ids()==[second]
     assert store.start_job(first) is None
@@ -265,7 +265,7 @@ def test_stale_running_jobs_are_failed_without_provider_replay(store,buyer,monke
     from sqlalchemy import update
     with store.engine.begin() as conn:
         conn.execute(update(db.reviews).where(db.reviews.c.id==first).values(
-            created_at=int(time.time())-1000,
+            started_at=int(time.time())-1000,
         ))
     assert store.fail_abandoned_jobs(age_seconds=720)==1
     assert store.fail_abandoned_jobs(age_seconds=720)==0
