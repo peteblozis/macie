@@ -5,6 +5,7 @@ fixtures. No payment, key, third-party model or SMTP account is accessed.
 The commercial routes stay disabled in production until release gates pass.
 """
 import json
+import io
 import time
 import tempfile
 from pathlib import Path
@@ -255,3 +256,36 @@ def test_login_attempts_persist_and_throttle(fixture):
         "email":m["email"],"password":"Safe-long-commercial-password-123",
     })
     assert again.status_code==429
+
+
+def test_paid_buyer_uploads_existing_word_document_without_owner_help(fixture):
+    from docx import Document
+    cli=fixture["client"]
+    member=customer(fixture)
+    headers={"X-CSRF-Token":member["csrf"]}
+    assert cli.post("/macie/c/commercial/provider",
+        json={"api_key":buyer_key()},headers=headers).status_code==200
+    paid(fixture["store"],member["tenant"],event="evt-docx-buy",limit=2)
+    doc=Document()
+    doc.add_paragraph("Existing Realtor pitch for independent review.")
+    doc.add_table(rows=1,cols=2).cell(0,0).text="Original brochure details"
+    stream=io.BytesIO()
+    doc.save(stream)
+    stream.seek(0)
+    submitted=cli.post("/macie/c/commercial/review",data={
+        "file":(stream,"brochure.docx"),
+        "goal":"Identify unsupported claims and improve the existing copy",
+    },content_type="multipart/form-data",headers=headers)
+    assert submitted.status_code==202,submitted.json
+    job_id=submitted.json["job_id"]
+    for attempt in range(80):
+        current=cli.get("/macie/c/commercial/review/"+job_id)
+        if current.json["status"]=="finished":
+            break
+        time.sleep(.03)
+    else:
+        pytest.fail("Commercial Word document review did not complete.")
+    assert len(fixture["calls"])==1
+    assert "Existing Realtor pitch" in fixture["calls"][0][0]
+    assert "Original brochure details" in fixture["calls"][0][0]
+    assert fixture["store"].entitlement(member["tenant"]).reviews_consumed==1
