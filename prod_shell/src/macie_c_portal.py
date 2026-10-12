@@ -26,6 +26,7 @@ from flask import (
 
 from prod_shell.src.macie_c import MAX_DOCUMENT_CHARS, review_document
 from prod_shell.src.macie_c_template import PAGE_HTML
+from prod_shell.src import customer_openrouter_keys as customer_keys
 
 
 bp = Blueprint("macie_c_portal", __name__, url_prefix="/macie/c")
@@ -208,27 +209,53 @@ def _submitted_document():
     return document, (goal.strip() or "Review and improve this material; explain revisions and flag claims requiring verification.")
 
 
+def _scrub_secret(value, secret: str):
+    """Provider errors sometimes contain echoed headers; never return keys."""
+    if isinstance(value, str):
+        return value.replace(secret, "[REDACTED]")
+    if isinstance(value, list):
+        return [_scrub_secret(item, secret) for item in value]
+    if isinstance(value, dict):
+        return {k: _scrub_secret(v, secret) for k, v in value.items()}
+    return value
+
+
 def _run_job(job_id: str, document: str, goal: str):
     with _lock:
         job = _jobs.get(job_id)
         if not job:
             return
         job["state"] = "running"
-    try:
-        # This invokes the two real independent AI lanes. No test fixtures.
-        result = review_document(document, goal, options={"max_tokens": 3600})
-        with _lock:
-            job = _jobs.get(job_id)
-            if job:
-                job["result"] = result
-                job["state"] = "finished"
-    except Exception:
-        # Never log customer input or provider error text.
+        owner = job["owner"]
+        sid = job["session_id"]
+    # Key is looked up server-side, and is not stored in the job queue.
+    customer_key = customer_keys.get_key(owner, sid)
+    if not customer_key:
         with _lock:
             job = _jobs.get(job_id)
             if job:
                 job["state"] = "failed"
-                job["error"] = "Review failed. Please try again later."
+                job["error"] = "Reconnect your OpenRouter key and retry."
+        return
+    try:
+        # Claude, GPT, and synthesis all use the buyer's own key only.
+        result = review_document(
+            document, goal, options={"max_tokens": 3600},
+            customer_openrouter_key=customer_key,
+        )
+        sanitized = _scrub_secret(result, customer_key)
+        with _lock:
+            job = _jobs.get(job_id)
+            if job:
+                job["result"] = sanitized
+                job["state"] = "finished"
+    except Exception:
+        # Never log customer input, credential, or provider exception text.
+        with _lock:
+            job = _jobs.get(job_id)
+            if job:
+                job["state"] = "failed"
+                job["error"] = "Review failed. Verify your own provider key and try again."
 
 
 @bp.before_request
@@ -291,6 +318,7 @@ def login():
     session.clear()
     session.permanent = True
     session["macie_c_email"] = email
+    session["macie_c_sid"] = secrets.token_urlsafe(32)
     session["macie_c_csrf"] = secrets.token_urlsafe(32)
     return jsonify({"ok": True, "email": email})
 
@@ -302,8 +330,67 @@ def logout():
         return denied
     if not _csrf_ok():
         return jsonify({"error": "Invalid CSRF token."}), 403
+    customer_keys.revoke(_current_user(), session.get("macie_c_sid", ""))
     session.clear()
     return jsonify({"ok": True})
+
+
+@bp.route("/provider", methods=["GET"])
+def provider_status():
+    denied = _authenticated()
+    if denied:
+        return denied
+    return jsonify({
+        "provider": "openrouter",
+        "connected": customer_keys.connected(
+            _current_user(), session.get("macie_c_sid", "")
+        ),
+        "storage": "encrypted_session_memory",
+        "durable": False,
+    })
+
+
+@bp.route("/provider", methods=["POST"])
+def provider_connect():
+    denied = _authenticated()
+    if denied:
+        return denied
+    if not _csrf_ok():
+        return jsonify({"error": "Invalid CSRF token."}), 403
+    if request.content_length and request.content_length > 1500:
+        return jsonify({"error": "Provider-key request exceeds size limit."}), 413
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return jsonify({"error": "Enter your OpenRouter API key."}), 400
+    key = body.get("api_key")
+    throttle = f"provider|{request.remote_addr}|{_current_user()}"
+    if _login_blocked(throttle):
+        return jsonify({"error": "Too many key validation attempts. Try later."}), 429
+    try:
+        customer_keys.save_key(
+            _current_user(), session.get("macie_c_sid", ""), key
+        )
+    except ValueError as exc:
+        _record_login_failure(throttle)
+        return jsonify({"error": str(exc)}), 400
+    with _lock:
+        _failed_logins.pop(throttle, None)
+    return jsonify({
+        "provider": "openrouter",
+        "connected": True,
+        "message": "Your own OpenRouter key is connected for this signed-in session.",
+    })
+
+
+@bp.route("/provider", methods=["DELETE"])
+def provider_disconnect():
+    denied = _authenticated()
+    if denied:
+        return denied
+    if not _csrf_ok():
+        return jsonify({"error": "Invalid CSRF token."}), 403
+    customer_keys.revoke(_current_user(), session.get("macie_c_sid", ""))
+    return jsonify({"provider": "openrouter", "connected": False})
 
 
 @bp.route("/review", methods=["POST"])
@@ -319,6 +406,11 @@ def submit_review():
         return jsonify({"error": str(exc)}), 400
     _cleanup_jobs()
     owner = _current_user()
+    sid = session.get("macie_c_sid", "")
+    if not customer_keys.connected(owner, sid):
+        return jsonify({
+            "error": "Connect your own OpenRouter API key before reviewing."
+        }), 409
     with _lock:
         user_running = sum(
             j["owner"] == owner and j["state"] in ("queued", "running")
@@ -332,6 +424,7 @@ def submit_review():
         job_id = secrets.token_urlsafe(18)
         _jobs[job_id] = {
             "owner": owner,
+            "session_id": sid,
             "state": "queued",
             "created": time.monotonic(),
             "result": None,
