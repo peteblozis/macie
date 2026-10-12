@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 import secrets
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 from flask import Blueprint, current_app, g, jsonify, request, session, render_template_string
@@ -30,8 +31,28 @@ _STORE_LOCK=threading.Lock()
 _STORE=None
 
 
+def _expire_old_documents():
+    """Background retention enforcement; job results are never retained past TTL.
+
+    Each Render web worker may run one cleaner; deletion is idempotent in DB.
+    A missing DB must not crash the unrelated private/pilot applications.
+    """
+    while True:
+        try:
+            if _configured():
+                _store().delete_expired_reviews()
+        except Exception:
+            pass  # Never log document content, credentials, or SQL secrets.
+        time.sleep(900)
+
+
 def configure_commercial(app):
     app.register_blueprint(bp)
+    if os.environ.get("MACIE_C_COMMERCIAL_RELEASE_APPROVED")=="1":
+        threading.Thread(
+            target=_expire_old_documents,daemon=True,
+            name="macie-c-retention-cleaner",
+        ).start()
 
 
 def _configured() -> bool:
@@ -374,6 +395,8 @@ def submit_review():
     try:
         document,goal=_submitted_document()
         store=_store()
+        # Opportunistic deletion augments the dedicated periodic cleaner.
+        store.delete_expired_reviews()
         job_id=store.reserve_review(identity[0],identity[1],document,goal)
         _WORKERS.submit(_run_commercial_job,store,job_id)
         return jsonify({"job_id":job_id,"status":"queued"}),202
