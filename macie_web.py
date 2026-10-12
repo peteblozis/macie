@@ -33,6 +33,12 @@ app = Flask(__name__)
 from prod_shell.src.macie_c_portal import configure_portal
 configure_portal(app)
 
+# Independent commercial routes have their own authenticated user/tenant
+# lifecycle. They remain disabled until real Postgres, identity, merchant,
+# and operator controls are in place; do NOT activate the sale by deployment.
+from prod_shell.src.commercial_portal import configure_commercial
+configure_commercial(app)
+
 
 @app.before_request
 def _protect_legacy_paid_query():
