@@ -39,6 +39,7 @@ META = MetaData()
 users = Table("c_users", META,
     Column("id", String(36), primary_key=True),
     Column("email", String(320), unique=True, nullable=False),
+    Column("pending_org_name", String(160), nullable=False),
     Column("password_hash", String(200), nullable=False),
     Column("verified", Boolean, nullable=False, default=False),
     Column("session_version", Integer, nullable=False, default=0),
@@ -196,7 +197,7 @@ class Store:
             if existing:
                 raise ValueError("Account already exists or registration is pending.")
             db.execute(insert(users).values(
-                id=uid, email=email, password_hash=pw_hash,
+                id=uid, email=email, pending_org_name=company.strip(), password_hash=pw_hash,
                 verified=False, session_version=0, created_at=_now(),
             ))
             # The organization is provisioned only AFTER email verification,
@@ -206,17 +207,13 @@ class Store:
                 digest=hashlib.sha256(token.encode()).hexdigest(),
                 user_id=uid, purpose="verify", expires_at=_now()+3600, used=False,
             ))
-            # Pre-verification org name is held in encrypted email-token
-            # provider-independent token state using purpose-specific marker.
-            # The name comes back from the account's verified registration
-            # request at verification time; no tenant is live beforehand.
+            # The requested organization name is bound to this unverified
+            # account; tenant/entitlement created only after verification.
         return token
 
-    def verify_email(self, token: str, company: str) -> tuple[str, str] | None:
+    def verify_email(self, token: str, company: str | None = None) -> tuple[str, str] | None:
         if not isinstance(token, str) or len(token) > 200:
             return None
-        if not isinstance(company, str) or not 2 <= len(company.strip()) <= 160:
-            raise ValueError("A valid organization name is required.")
         digest = hashlib.sha256(token.encode()).hexdigest()
         with self.engine.begin() as db:
             row = db.execute(select(email_tokens).where(
@@ -234,9 +231,14 @@ class Store:
             if updated.rowcount != 1:
                 return None
             uid = row["user_id"]
+            account = db.execute(select(users).where(users.c.id == uid)).mappings().one()
+            # Registration binds the organization name; verification cannot
+            # rename a tenant by changing an untrusted browser form field.
+            if company is not None and company.strip() != account["pending_org_name"]:
+                raise ValueError("Organization name did not match registration.")
             tid = _id()
             db.execute(update(users).where(users.c.id == uid).values(verified=True))
-            db.execute(insert(tenants).values(id=tid,name=company.strip(),created_at=_now()))
+            db.execute(insert(tenants).values(id=tid,name=account["pending_org_name"],created_at=_now()))
             db.execute(insert(memberships).values(user_id=uid,tenant_id=tid,role="owner",active=True))
             db.execute(insert(subscriptions).values(
                 tenant_id=tid,status="inactive",billing_verified=False,
@@ -376,6 +378,10 @@ class Store:
             )).mappings().first()
             if not current:
                 raise ValueError("Unknown tenant; subscription cannot be activated.")
+            if current["merchant_customer_id"] not in (None, customer_id):
+                raise ValueError("Customer/tenant billing mismatch.")
+            if current["merchant_subscription_id"] not in (None, subscription_id):
+                raise ValueError("Subscription/tenant billing mismatch.")
             if event_at < current["last_billing_event_at"]:
                 db.execute(insert(billing_events).values(
                     event_id=event_id,event_type=event_type,event_at=event_at))
@@ -393,6 +399,15 @@ class Store:
             db.execute(insert(billing_events).values(
                 event_id=event_id,event_type=event_type,event_at=event_at))
             return True
+
+    def tenant_for_customer_subscription(self, customer_id: str, subscription_id: str) -> str | None:
+        if not customer_id or not subscription_id:
+            return None
+        with self.engine.connect() as db:
+            return db.execute(select(subscriptions.c.tenant_id).where(
+                subscriptions.c.merchant_customer_id==customer_id,
+                subscriptions.c.merchant_subscription_id==subscription_id,
+            )).scalar_one_or_none()
 
     def set_key(self, user_id: str, tenant_id: str, key: str) -> None:
         from prod_shell.src.customer_openrouter_keys import _validate_shape
