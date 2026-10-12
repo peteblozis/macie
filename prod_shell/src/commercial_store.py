@@ -241,6 +241,20 @@ class Store:
             # account; tenant/entitlement created only after verification.
         return token
 
+    def issue_verification_token(self, email: str) -> str | None:
+        """Self-service retry when delivery failed; only unverified accounts."""
+        account=self.get_account_by_email(email)
+        if not account or account["verified"]:
+            return None
+        token=secrets.token_urlsafe(36)
+        with self.engine.begin() as db:
+            db.execute(insert(email_tokens).values(
+                digest=hashlib.sha256(token.encode()).hexdigest(),
+                user_id=account["id"],purpose="verify",
+                expires_at=_now()+3600,used=False,
+            ))
+        return token
+
     def verify_email(self, token: str, company: str | None = None) -> tuple[str, str] | None:
         if not isinstance(token, str) or len(token) > 200:
             return None
