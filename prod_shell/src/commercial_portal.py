@@ -17,6 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 from flask import Blueprint, current_app, g, jsonify, request, session, render_template_string
 
 from prod_shell.src.commercial_mail import mail_configured, send_token_message
+from prod_shell.src.commercial_billing import StripeGateway, CheckoutPending
 from prod_shell.src.commercial_store import Store, production_engine
 from prod_shell.src.commercial_template import HTML
 from prod_shell.src.customer_openrouter_keys import verify_openrouter_key
@@ -43,6 +44,8 @@ def _configured() -> bool:
         bool(os.environ.get("MACIE_C_MERCHANT_SECRET_KEY")),
         bool(os.environ.get("MACIE_C_MERCHANT_WEBHOOK_SECRET")),
         bool(os.environ.get("MACIE_C_MERCHANT_PRICE_ID")),
+        (os.environ.get("MACIE_C_COMMERCIAL_PLAN_LIMIT","").isdigit()
+         and int(os.environ.get("MACIE_C_COMMERCIAL_PLAN_LIMIT","0"))>0),
     ))
 
 
@@ -381,9 +384,17 @@ def checkout():
     if err:return err
     denied=_require_post()
     if denied:return denied
-    # Commerce gateway adapter will be mounted only after merchant approval
-    # and signed webhook + tax/privacy gates. Never accept browser 'paid=true'.
-    return jsonify({"error":"Paid checkout not yet configured."}),503
+    uid,tenant=identity
+    ent=_store().entitlement(tenant)
+    if ent and ent.billing_verified and ent.status=="active":
+        return jsonify({"error":"An active subscription already exists. Use billing settings."}),409
+    email=_store().get_account(uid)["email"]
+    try:
+        url=StripeGateway.from_environment().checkout(tenant_id=tenant,email=email)
+        return jsonify({"checkout_url":url})
+    except Exception:
+        # Never leak merchant/API responses or card-related information.
+        return jsonify({"error":"Checkout is temporarily unavailable."}),503
 
 
 @bp.route("/billing",methods=["POST"])
@@ -392,4 +403,33 @@ def billing_portal():
     if err:return err
     denied=_require_post()
     if denied:return denied
-    return jsonify({"error":"Customer billing portal not yet configured."}),503
+    customer=_store().billing_customer(identity[1])
+    if not customer:
+        return jsonify({"error":"No verified billing account is linked."}),409
+    try:
+        url=StripeGateway.from_environment().billing_portal(
+            merchant_customer_id=customer)
+        return jsonify({"billing_portal_url":url})
+    except Exception:
+        return jsonify({"error":"Customer billing portal is temporarily unavailable."}),503
+
+
+@bp.route("/billing-webhook",methods=["POST"])
+def signed_billing_webhook():
+    # Stripe sends a verified signed event, not an authenticated browser request.
+    # This endpoint can never be used to set arbitrary browser-supplied paid=true.
+    body=request.get_data(cache=False)
+    signature=request.headers.get("Stripe-Signature","")
+    try:
+        gateway=StripeGateway.from_environment()
+        event=gateway.verify_webhook(body,signature)
+        outcome=gateway.process_verified_event(event,_store())
+        return jsonify({"received":True,"outcome":outcome})
+    except CheckoutPending:
+        # A verified invoice arrived before checkout linkage. 503 => retry.
+        return jsonify({"error":"Merchant event requires retry."}),503
+    except ValueError:
+        return jsonify({"error":"Invalid merchant event."}),400
+    except Exception:
+        # No billing secrets or payment body enter logs.
+        return jsonify({"error":"Merchant event handling temporarily unavailable."}),503
