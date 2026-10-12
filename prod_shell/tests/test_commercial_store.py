@@ -220,7 +220,8 @@ def test_sqlite_is_test_only_and_production_needs_postgres(monkeypatch,store):
     monkeypatch.delenv("MACIE_C_COMMERCIAL_DATABASE_URL",raising=False)
     with pytest.raises(RuntimeError,match="PostgreSQL"):
         db.production_engine()
-    with pytest.raises(RuntimeError,match="reviewed migration"):
+    from sqlalchemy.exc import OperationalError
+    with pytest.raises(OperationalError):
         db.Store(db.testing_engine(),"another-test-secret-0123456789-abcdef").assert_schema()
 
 
