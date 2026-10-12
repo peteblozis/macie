@@ -40,9 +40,13 @@ pre{background:#ecf3f2;padding:16px;white-space:pre-wrap;overflow-wrap:anywhere;
 <h3>Forgot password?</h3><form id="forgot"><label>Email<input type="email" name="email" required></label>
 <button type="submit">Send a reset link</button></form>
 </div></div></section>
+<section id="resetPanel" class="hide"><h2>Reset your password</h2>
+<form id="resetForm"><label>Choose your new password (14+ characters)
+<input id="newPassword" type="password" minlength="14" required autocomplete="new-password"></label>
+<button type="submit">Save new password</button></form></section>
 <section id="account" {% if not user_id %}class="hide"{% endif %}>
 <div class="row"><div><h2>Your account</h2><p id="accountInfo">Loading...</p>
-<button id="logout" type="button">Sign out</button><button id="checkout" type="button">View checkout</button>
+<button id="logout" type="button">Sign out</button><button id="checkout" type="button">Choose and pay for subscription</button><button id="billing" type="button">Manage billing and cancel</button>
 </div><div><h2>Connect your own model key</h2>
 <p>Open an OpenRouter account, create a standard API key, and set your own spending limit. You pay OpenRouter directly for model usage. Claude and GPT use this one key, never the founder's credentials.</p>
 <p><a href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer noopener">OpenRouter key settings</a></p>
@@ -100,7 +104,14 @@ if(account&&!account.classList.contains("hide")){
   $("providerState").textContent=state.provider_connected?"Your OpenRouter key is connected.":"No AI key connected yet.";
  };refresh().catch(e=>msg(e.message,true));
  $("logout").addEventListener("click",async()=>{try{await request("/logout","POST",{});location.reload();}catch(e){msg(e.message,true);}});
- $("checkout").addEventListener("click",async()=>{try{await request("/checkout","POST",{});}catch(e){msg(e.message,true);}});
+ $("checkout").addEventListener("click",async()=>{
+  try{const r=await request("/checkout","POST",{});if(r.checkout_url)location.assign(r.checkout_url);}
+  catch(e){msg(e.message,true);}
+ });
+ $("billing").addEventListener("click",async()=>{
+  try{const r=await request("/billing","POST",{});if(r.billing_portal_url)location.assign(r.billing_portal_url);}
+  catch(e){msg(e.message,true);}
+ });
  $("provider").addEventListener("submit",async e=>{
   e.preventDefault();
   try{await request("/provider","POST",{api_key:$("apiKey").value});
@@ -148,9 +159,15 @@ if(verify){history.replaceState(null,"",location.pathname);
  .then(x=>msg(x.message||"Email verified. Sign in."))
  .catch(e=>msg(e.message,true));}
 if(reset){history.replaceState(null,"",location.pathname);
- const password=prompt("Enter a new strong password (at least 14 characters):");
- if(password)request("/reset-password","POST",{token:reset,new_password:password})
- .then(()=>msg("Password changed. Sign in with your new password."))
- .catch(e=>msg(e.message,true));}
+ $("resetPanel").classList.remove("hide");$("guest").classList.add("hide");
+ $("resetForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  try{await request("/reset-password","POST",{token:reset,new_password:$("newPassword").value});
+   $("newPassword").value="";$("resetPanel").classList.add("hide");
+   $("guest").classList.remove("hide");
+   msg("Password changed. Sign in with your new password.");
+  }catch(err){msg(err.message,true);}
+ });
+}
 })();
 </script></body></html>"""
