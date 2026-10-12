@@ -26,10 +26,21 @@ class OpenRouterAdapter(ProviderAdapter):
     lane = "claude"
     zdr_capable = True  # OpenRouter exposes Zero-Data-Retention controls
 
-    def __init__(self, http_client: Optional[httpx.AsyncClient] = None) -> None:
+    def __init__(
+        self,
+        http_client: Optional[httpx.AsyncClient] = None,
+        *,
+        customer_api_key: str | None = None,
+    ) -> None:
         self._client = http_client
+        # A customer-key adapter must NEVER fall back to an owner's global
+        # OPENROUTER_API_KEY, even when the customer's key is revoked or fails.
+        self._customer_api_key = customer_api_key
+        self._customer_owned = customer_api_key is not None
 
     def is_configured(self) -> bool:
+        if self._customer_owned:
+            return bool(self._customer_api_key)
         return bool(os.environ.get("OPENROUTER_API_KEY"))
 
     def resolve_model(self, req: RouterRequest) -> str:
@@ -43,7 +54,10 @@ class OpenRouterAdapter(ProviderAdapter):
 
     async def run(self, req: RouterRequest, model: str, request_id: str) -> RouterResult:
         start = time.monotonic()
-        key = os.environ.get("OPENROUTER_API_KEY", "")
+        key = (
+            self._customer_api_key if self._customer_owned
+            else os.environ.get("OPENROUTER_API_KEY", "")
+        )
 
         messages = []
         if req.system_prompt:
