@@ -57,7 +57,9 @@ pre{background:#ecf3f2;padding:16px;white-space:pre-wrap;overflow-wrap:anywhere;
 </section>
 <section id="review" {% if not user_id %}class="hide"{% endif %}>
 <h2>Review existing content</h2>
-<form id="reviewForm"><label>Paste your existing document<textarea name="document" maxlength="50000" required placeholder="Paste a previously drafted brochure, letter, proposal or procedure."></textarea></label>
+<form id="reviewForm"><label>Upload existing Word (.docx) or TXT document (optional)<input name="file" type="file" accept=".docx,.txt"></label>
+<label>Or paste your existing document<textarea name="document" maxlength="50000" placeholder="Paste a previously drafted brochure, letter, proposal or procedure."></textarea></label>
+<p class="subtle">2 MB maximum per file. DOCX text and tables are read; the original stays unchanged. Upload, paste, or both.</p>
 <label>Review objective<textarea name="goal" maxlength="2000" required>Improve clarity, accuracy, usefulness and trustworthiness. Clearly identify unsupported claims and disagreements. Produce a revised draft with reasoning.</textarea></label>
 <button type="submit">Run my independent MACIE C review</button></form><p id="reviewStatus"></p>
 </section>
@@ -74,7 +76,8 @@ let csrf={{ csrf|tojson }},last=null;
 function msg(text,error=false){$("notice").classList.remove("hide");$("noticeText").className=error?"error":"success";$("noticeText").textContent=text;}
 async function request(path,method="GET",data=null){
  const opts={method,cache:"no-store",credentials:"same-origin",headers:{}};
- if(data!==null){opts.headers["Content-Type"]="application/json";opts.body=JSON.stringify(data);}
+ if(data instanceof FormData){opts.body=data;}
+ else if(data!==null){opts.headers["Content-Type"]="application/json";opts.body=JSON.stringify(data);}
  if(method!=="GET"&&csrf)opts.headers["X-CSRF-Token"]=csrf;
  const res=await fetch("/macie/c/commercial"+path,opts);let body={};
  try{body=await res.json();}catch(e){throw new Error("Server response could not be read.");}
@@ -125,7 +128,11 @@ if(account&&!account.classList.contains("hide")){
  });
  $("reviewForm").addEventListener("submit",async e=>{
   e.preventDefault();let b=e.currentTarget.querySelector("button");b.disabled=true;last=null;$("reviewOutput").classList.add("hide");
-  try{const job=await request("/review","POST",payload(e.currentTarget));
+  try{
+   const formData=new FormData(e.currentTarget);
+   if(!String(formData.get("document")||"").trim()&&!formData.get("file")?.name)
+    throw new Error("Paste document text or select a Word/TXT file.");
+   const job=await request("/review","POST",formData);
    $("reviewStatus").textContent="Independent reviews in progress...";
    for(let i=0;i<150;i++){
     await new Promise(done=>setTimeout(done,1800));

@@ -31,27 +31,39 @@ _STORE_LOCK=threading.Lock()
 _STORE=None
 
 
-def _expire_old_documents():
-    """Background retention enforcement; job results are never retained past TTL.
+def _recover_jobs_loop():
+    """Poll durable queued jobs rather than trusting web-worker memory.
 
-    Each Render web worker may run one cleaner; deletion is idempotent in DB.
-    A missing DB must not crash the unrelated private/pilot applications.
+    An abrupt Render restart can discard the in-memory executor queue.
+    Pending encrypted jobs survive in Postgres and are rediscovered;
+    start_job performs an atomic database claim across processes.
+    Previously RUNNING jobs are not replayed: repeating a charged model
+    request can duplicate the buyer's provider bill. Stale ones fail
+    explicitly, so the customer can choose whether to retry.
     """
+    next_cleanup = 0.0
     while True:
         try:
             if _configured():
-                _store().delete_expired_reviews()
+                store = _store()
+                if time.monotonic() >= next_cleanup:
+                    store.fail_abandoned_jobs(age_seconds=720)
+                    store.delete_expired_reviews()
+                    next_cleanup = time.monotonic() + 300
+                for job_id in store.queued_review_ids(limit=12):
+                    _WORKERS.submit(_run_commercial_job, store, job_id)
         except Exception:
-            pass  # Never log document content, credentials, or SQL secrets.
-        time.sleep(900)
+            # Poller never logs document, model output, bearer key or SQL DSN.
+            pass
+        time.sleep(15)
 
 
 def configure_commercial(app):
     app.register_blueprint(bp)
     if os.environ.get("MACIE_C_COMMERCIAL_RELEASE_APPROVED")=="1":
         threading.Thread(
-            target=_expire_old_documents,daemon=True,
-            name="macie-c-retention-cleaner",
+            target=_recover_jobs_loop,daemon=True,
+            name="macie-c-durable-queue-worker",
         ).start()
 
 
@@ -398,6 +410,9 @@ def submit_review():
         # Opportunistic deletion augments the dedicated periodic cleaner.
         store.delete_expired_reviews()
         job_id=store.reserve_review(identity[0],identity[1],document,goal)
+        # Dispatch immediately for responsiveness. Database poller is a
+        # recovery path after restarts or executor loss; atomic claim
+        # prevents double model calls.
         _WORKERS.submit(_run_commercial_job,store,job_id)
         return jsonify({"job_id":job_id,"status":"queued"}),202
     except ValueError as exc:

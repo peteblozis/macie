@@ -90,6 +90,7 @@ reviews = Table("c_reviews", META,
     Column("encrypted_goal", LargeBinary, nullable=False),
     Column("encrypted_result", LargeBinary, nullable=True),
     Column("created_at", Integer, nullable=False),
+    Column("started_at", Integer, nullable=True),
     Column("expires_at", Integer, nullable=False),
 )
 Index("c_reviews_tenant_user_ix", reviews.c.tenant_id, reviews.c.user_id)
@@ -529,12 +530,54 @@ class Store:
                 raise PermissionError("Subscription quota is no longer available.")
             db.execute(insert(reviews).values(
                 id=job_id,tenant_id=tenant_id,user_id=user_id,
-                state="queued",encrypted_document=self._seal(tenant_id,"document",document),
+                state="queued",started_at=None,
+                encrypted_document=self._seal(tenant_id,"document",document),
                 encrypted_goal=self._seal(tenant_id,"goal",goal),
                 encrypted_result=None,created_at=_now(),
                 expires_at=_now()+1800,
             ))
         return job_id
+
+    def queued_review_ids(self, limit: int = 12) -> list[str]:
+        """Durable queue discovery after a web-process restart.
+
+        Returns ONLY opaque job IDs, never tenant names, inputs, passwords,
+        provider keys or model responses. Concurrent worker submissions are
+        safe because start_job claims each queued row atomically.
+        """
+        if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 100:
+            raise ValueError("Job poll limit must be 1–100.")
+        with self.engine.connect() as db:
+            return list(db.execute(
+                select(reviews.c.id).where(
+                    reviews.c.state == "queued",
+                    reviews.c.expires_at > _now(),
+                ).order_by(reviews.c.created_at, reviews.c.id).limit(limit)
+            ).scalars())
+
+    def fail_abandoned_jobs(self, age_seconds: int = 720) -> int:
+        """Fail stale in-flight jobs without calling paid models a second time.
+
+        When a service crashes mid-call, automatic replay risks duplicate
+        AI-provider charges. Mark older RUNNING attempts failed and discard
+        their encrypted source. Queued attempts are safe to claim again.
+        Customers can submit a fresh review if necessary; no silent replay.
+        Never record or return sensitive provider or document details.
+        """
+        if not isinstance(age_seconds,int) or age_seconds < 300:
+            raise ValueError("The abandonment threshold must be at least five minutes.")
+        cutoff = _now() - age_seconds
+        with self.engine.begin() as db:
+            result = db.execute(update(reviews).where(
+                reviews.c.state == "running",
+                reviews.c.started_at.is_not(None),
+                reviews.c.started_at < cutoff,
+            ).values(
+                state="failed",
+                encrypted_document=b"",
+                encrypted_goal=b"",
+            ))
+            return result.rowcount
 
     def start_job(self,job_id: str) -> tuple[str,str,str,str] | None:
         """Worker claims a queued job atomically, with no cross-tenant leak."""
@@ -543,7 +586,7 @@ class Store:
                 reviews.c.id==job_id,
                 reviews.c.state=="queued",
                 reviews.c.expires_at>_now(),
-            ).values(state="running"))
+            ).values(state="running",started_at=_now()))
             if updated.rowcount!=1:
                 return None
             row=db.execute(select(reviews).where(reviews.c.id==job_id)).mappings().one()
