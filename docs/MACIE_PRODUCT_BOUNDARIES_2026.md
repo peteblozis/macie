@@ -1,7 +1,7 @@
 # MACIE A/B/C binding product boundary — owner-confirmed 2026-10-12
 
 - **A / 1:** internal SFC-powered consensus unit. Not for sale.
-- **B / 2:** commercial customer-authored **prompt** enhancement by **Claude**. No SFC access, context, or dependency.
+- **B / 2:** commercial enhancement of a **prompt created anywhere** through **independent ChatGPT and Claude consensus**. No SFC access, context, or dependency.
 - **C / 3:** commercial enhancement of **existing documents/articles/material** using independent **ChatGPT and Claude** reviews and consensus. No SFC access, context, or dependency.
 - B/C must operate self-service with customer-owned keys, isolated accounts and records; never depend on the founder.
 
@@ -15,7 +15,7 @@
 
 ## Release gates (fail closed)
 1. Separate A internal routes from B/C customer routes and public assets.
-2. Establish B-only Claude prompt enhancement and tests; never misrepresent C as B.
+2. Establish B dual-model ChatGPT + Claude prompt consensus and tests; never misrepresent C as B.
 3. Prove C uses actual independent Claude and OpenAI-family models, never substituted same-provider consensus.
 4. Prove B/C do not load owner SFC knowledge, credentials, routes, or private modules.
 5. Verify tenant isolation, BYOK, subscription, legal, security and live end-to-end checks.
