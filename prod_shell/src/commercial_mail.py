@@ -52,10 +52,12 @@ def send_token_message(email: str, token: str, purpose: str) -> None:
         "Do not forward the link or your AI provider key.\n"
     )
     port=int(os.environ.get("MACIE_C_SMTP_PORT","587"))
-    if port!=587:
-        # Keep the initial commercial implementation on explicit SMTP STARTTLS.
-        # Alternate verified TLS ports may be added after specific testing.
-        raise RuntimeError("SMTP STARTTLS port 587 is required.")
+    # Render FREE web services block outbound SMTP 25/465/587.
+    # Port 2525 can work ONLY when the customer's existing SMTP relay
+    # explicitly supports authenticated STARTTLS on that port. It is not
+    # a universal substitute and must be tested with the configured relay.
+    if port not in (587,2525):
+        raise RuntimeError("SMTP authenticated STARTTLS port 587 or 2525 is required.")
     with smtplib.SMTP(os.environ["MACIE_C_SMTP_HOST"],port,timeout=15) as client:
         client.ehlo()
         client.starttls(context=ssl.create_default_context())
