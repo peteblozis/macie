@@ -90,6 +90,7 @@ reviews = Table("c_reviews", META,
     Column("encrypted_goal", LargeBinary, nullable=False),
     Column("encrypted_result", LargeBinary, nullable=True),
     Column("created_at", Integer, nullable=False),
+    Column("started_at", Integer, nullable=True),
     Column("expires_at", Integer, nullable=False),
 )
 Index("c_reviews_tenant_user_ix", reviews.c.tenant_id, reviews.c.user_id)
@@ -529,7 +530,8 @@ class Store:
                 raise PermissionError("Subscription quota is no longer available.")
             db.execute(insert(reviews).values(
                 id=job_id,tenant_id=tenant_id,user_id=user_id,
-                state="queued",encrypted_document=self._seal(tenant_id,"document",document),
+                state="queued",started_at=None,
+                encrypted_document=self._seal(tenant_id,"document",document),
                 encrypted_goal=self._seal(tenant_id,"goal",goal),
                 encrypted_result=None,created_at=_now(),
                 expires_at=_now()+1800,
@@ -568,7 +570,8 @@ class Store:
         with self.engine.begin() as db:
             result = db.execute(update(reviews).where(
                 reviews.c.state == "running",
-                reviews.c.created_at < cutoff,
+                reviews.c.started_at.is_not(None),
+                reviews.c.started_at < cutoff,
             ).values(
                 state="failed",
                 encrypted_document=b"",
@@ -583,7 +586,7 @@ class Store:
                 reviews.c.id==job_id,
                 reviews.c.state=="queued",
                 reviews.c.expires_at>_now(),
-            ).values(state="running"))
+            ).values(state="running",started_at=_now()))
             if updated.rowcount!=1:
                 return None
             row=db.execute(select(reviews).where(reviews.c.id==job_id)).mappings().one()
