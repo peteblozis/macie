@@ -19,6 +19,8 @@ def review_document(
     document: str,
     goal: str = "Find weaknesses, improve the document, and explain significant changes.",
     options: dict[str, Any] | None = None,
+    *,
+    customer_openrouter_key: str | None = None,
 ) -> dict[str, Any]:
     """Review an existing document, preserving provenance and failure states.
 
@@ -45,7 +47,39 @@ def review_document(
         "<SOURCE_DOCUMENT>\n" + document + "\n</SOURCE_DOCUMENT>"
     )
 
-    result = consensus(prompt, list(REVIEW_ROSTER), options=options)
+    # The purchased MACIE C product uses the buyer's own OpenRouter key,
+    # scoped to this one review. Never mutate os.environ or the global router.
+    # Never fall back to platform owner's provider credentials.
+    injected_adapters = bool(options and (
+        "adapters" in options or "synthesizer_adapter" in options
+    ))
+    run_options = dict(options or {})
+    if customer_openrouter_key is not None:
+        if injected_adapters:
+            raise ValueError("Cannot combine customer credentials and test adapters")
+        from engine.src.adapters.router_adapter import RouterAdapter
+        from sfc_ai_router import AiRouter, OpenRouterAdapter, OpenRouterChatGPTAdapter
+        from sfc_ai_router.health import ProviderHealth
+        from prod_shell.src.customer_openrouter_keys import _validate_shape
+
+        _validate_shape(customer_openrouter_key)
+        router = AiRouter(
+            adapters=[
+                OpenRouterAdapter(customer_api_key=customer_openrouter_key),
+                OpenRouterChatGPTAdapter(customer_api_key=customer_openrouter_key),
+            ],
+            health=ProviderHealth(),
+            # Customer-sensitive prompts/responses and keys must not be sent
+            # into a shared application audit file.
+            audit_writer=lambda record: None,
+        )
+        run_options["adapters"] = {
+            "claude": RouterAdapter("claude", router=router),
+            "chatgpt": RouterAdapter("chatgpt", router=router),
+        }
+        run_options["synthesizer_id"] = "claude"
+
+    result = consensus(prompt, list(REVIEW_ROSTER), options=run_options)
     model_outputs = [
         {
             "model_id": o.model_id,
@@ -71,9 +105,6 @@ def review_document(
              "openai" in versions.get("chatgpt", ""))
         and versions.get("claude") != versions.get("chatgpt")
     )
-    injected_adapters = bool(options and (
-        "adapters" in options or "synthesizer_adapter" in options
-    ))
     is_fixture = injected_adapters or any("fixture" in v for v in versions.values())
     consensus_valid = (
         len(successful_ids) == 2

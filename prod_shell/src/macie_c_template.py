@@ -44,8 +44,25 @@ footer{text-align:center;font-size:12px;color:#687c81;margin:24px}
 <p class="muted">Your access must be activated by the administrator before you can sign in.</p>
 </section>
 {% else %}
+<section class="card" id="providerPanel">
+<h1>Step 1 — Connect your own AI key</h1>
+<p>MACIE C uses <strong>your OpenRouter account</strong> for Claude and GPT reviews. Your provider charges apply to your own OpenRouter credits. This is separate from the MACIE C product subscription, which is not yet commercially available.</p>
+<p class="muted">Create a dedicated <strong>standard API key</strong> in your OpenRouter account. Set an account/key spending limit and keep the key private. Do not use a management or administrative key. <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer noopener">Open OpenRouter key settings</a>.</p>
+<form id="providerForm">
+<label for="providerKey">Your OpenRouter API key (encrypted temporarily on the server for this sign-in)</label>
+<input id="providerKey" type="password" autocomplete="off" spellcheck="false"
+placeholder="sk-or-v1-..." maxlength="400" required>
+<p id="providerError" role="alert"></p>
+<div class="actions">
+<button id="connectKey" type="submit">Connect / replace my key</button>
+<button id="disconnectKey" class="quiet" type="button">Disconnect my key</button>
+</div>
+<p id="providerStatus" role="status" class="muted">Checking your provider connection...</p>
+</form>
+<div class="notice">This controlled pilot encrypts the key in temporary server memory. You will connect it again after sign-out or server restart. The sellable product requires a secure, durable customer-owned key vault; MACIE C never asks its founder to supply your provider key.</div>
+</section>
 <section class="card">
-<h1>Review an existing document</h1>
+<h1>Step 2 — Review an existing document</h1>
 <div class="meta"><span>Signed in: <strong>{{ email }}</strong></span><span class="badge">Draft review only</span></div>
 <p>Paste material below, or select a <strong>Word (.docx)</strong> or <strong>TXT</strong> file. Both AI models independently review it; MACIE then compares their findings and shows agreements and disagreements.</p>
 <div class="notice">Your original is not altered or published. The server retains the job briefly in memory (about 30 minutes), and the content is sent to configured AI providers for review. Do not submit sensitive personal/customer data without permission and approved privacy controls.</div>
@@ -96,6 +113,37 @@ if(logout)logout.addEventListener("click",async()=>{
  catch(ex){error(ex.message);}
 });
 const form=qs("reviewForm");if(!form)return;
+const providerForm=qs("providerForm"), providerStatus=qs("providerStatus"),
+      providerError=qs("providerError"), providerKey=qs("providerKey");
+function providerMessage(connected){
+ providerStatus.textContent=connected?
+  "Connected: Your own OpenRouter key is ready for this session. You may now review documents.":
+  "Not connected. Connect your own OpenRouter key before running a review.";
+}
+async function checkProvider(){
+ try{const info=await api("/macie/c/provider");providerMessage(info.connected);}
+ catch(ex){providerStatus.textContent="Provider status could not be checked.";}
+}
+checkProvider();
+providerForm.addEventListener("submit",async e=>{
+ e.preventDefault();providerError.textContent="";
+ const key=providerKey.value;qs("connectKey").disabled=true;
+ try{
+  const response=await api("/macie/c/provider",{
+   method:"POST",headers:{"X-CSRF-Token":csrf,"Content-Type":"application/json"},
+   body:JSON.stringify({api_key:key})
+  });
+  providerMessage(response.connected);providerKey.value="";
+ }catch(ex){providerError.textContent=ex.message;}
+ finally{qs("connectKey").disabled=false;}
+});
+qs("disconnectKey").addEventListener("click",async()=>{
+ providerError.textContent="";
+ try{
+  await api("/macie/c/provider",{method:"DELETE",headers:{"X-CSRF-Token":csrf}});
+  providerKey.value="";providerMessage(false);
+ }catch(ex){providerError.textContent=ex.message;}
+});
 let last=null;
 const run=qs("submit"), msg=qs("message");
 const status=qs("state"), synthesis=qs("synthesis"), divergences=qs("divergences");

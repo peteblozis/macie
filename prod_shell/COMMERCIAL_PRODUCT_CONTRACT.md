@@ -19,6 +19,18 @@ A new, unrelated customer must be able to complete all of the following **withou
 
 A product operator may perform rare maintenance, governance, security, legal, or incident response. This is fundamentally different from the founder manually activating individual customers, distributing passwords, running document reviews, changing environment variables per sale or submission, approving every output, or supervising each customer account.
 
+## Permanent buyer-owned AI key rule — BYOK
+
+**The purchaser independently creates and controls the AI provider API key used for MACIE C. The product owner must NEVER supply, loan, pay for or manually install model API keys on the customer's behalf.**
+
+- MACIE C implements **Bring Your Own Key (BYOK)**. A buyer establishes an OpenRouter account and creates a **standard completion API key** with an appropriate spending limit, using OpenRouter's secure settings. One OpenRouter key enables both independent Claude-family and OpenAI-family model calls; an Anthropic direct account is not required.
+- **Two distinct credentials:** MACIE C login/subscription authenticates the buyer to the application and licenses access. The *buyer's OpenRouter API key* authorizes billable AI inference directly against that buyer's provider account. They are not interchangeable; purchases cannot be bypassed by entering a provider key.
+- Customer self-service provider settings must securely support connect/verify, key replacement, provider-credit warnings, revoke/delete and an explanation of expected provider charges. A customer does not send a key to the proprietor, support staff, email, issue tracker or chat.
+- API keys are handled **server-side only over HTTPS**, never embedded in front-end JavaScript bundles, browser storage, query strings, telemetry, logs or generated documents. Keys are isolated per authenticated customer organization, encrypted using separate server-managed envelope keys at rest, and decrypted only for permitted model requests. Staff-facing logs show only nonsecret status.
+- MACIE C must **fail closed** if the buyer's key is absent, invalid, expired, out of credits, revoked or permission-restricted. A customer's call must never silently fall back to the owner's or another customer's provider credentials, nor permit Claude to be substituted by GPT while falsely declaring consensus.
+- Commercial release requires **durable encrypted tenant-specific credentials**, validated provider connections, account recovery that does not expose keys, usage metering, and lifecycle deletion. The current implementation stores buyer keys **encrypted in temporary process memory for one signed-in pilot session**, then requires reconnect on restart/sign-out. This is NOT a durable production key vault.
+- A provider key alone must not grant access: subscription eligibility, tenant membership, quota and upload/privacy checks are still enforced by MACIE C.
+
 ## Architectural invariants
 
 - **No dependency on any private owner intelligence environment.** This commercial product uses only explicitly licensed/common review engine code, customer content, configured model providers and tenant-authorized product services.
@@ -37,7 +49,7 @@ A product operator may perform rare maintenance, governance, security, legal, or
 **Existing controlled pilot:** `macie_web.py` + `prod_shell/src/macie_c_portal.py`, running on Render, supports pasted text/DOCX/TXT, login using manually stored environment-variable users, in-memory jobs and transient result retrieval. Prior tests demonstrated the two-model engine; local access checks passed. This is **NOT** the commercial launch configuration.
 
 **Known sale blockers:**
-- No automated signup/email verification/password reset.
+- No automated signup/email verification/password reset and durable BYOK vault.
 - No Stripe or equivalent live checkout, payment webhook verification, recurring entitlements or self-service billing portal.
 - No durable tenant/member/usage/job database and no multi-worker-safe job queue.
 - No user-managed invitations/roles and no automated cancellation/data deletion.
