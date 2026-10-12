@@ -33,6 +33,10 @@ jobs:
                       time.sleep(7)
           probes=[
               ("/macie/c", "GET", None, 200),
+              ("/macie/c/commercial", "GET", None, 503),
+              ("/macie/c/commercial/status", "GET", None, 503),
+              ("/macie/c/commercial/signup", "POST",json.dumps({"email":"none@example.invalid","accept_terms":True}).encode(), 503),
+              ("/macie/c/commercial/billing-webhook", "POST",json.dumps({"type":"fake"}).encode(), 503),
               ("/macie/c/review","POST",json.dumps({"document":"public test only"}).encode(),401),
               ("/macie/c/provider","GET",None,401),
               ("/macie/c/provider","POST",json.dumps({"api_key":"not-a-real-key"}).encode(),401),
