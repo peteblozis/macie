@@ -6,6 +6,9 @@ The commercial routes stay disabled in production until release gates pass.
 """
 import json
 import time
+import tempfile
+from pathlib import Path
+from sqlalchemy import create_engine
 
 import pytest
 
@@ -20,8 +23,21 @@ def buyer_key(letter="Q"):
 
 @pytest.fixture
 def fixture(monkeypatch):
-    store=db.Store(db.testing_engine(),"CI-only-commercial-identity-vault-test-0000000000000")
-    store.initialize_for_tests_only()
+    # Use a REAL temporary SQLite database file so in-process worker
+    # threads get independent database connections. In-memory StaticPool
+    # shares a single connection between threads and is not concurrency-safe.
+    with tempfile.TemporaryDirectory(prefix="macie-c-commercial-ci-") as tmp:
+        engine=create_engine(
+            "sqlite+pysqlite:///"+str(Path(tmp)/"commercial_test.sqlite"),
+            connect_args={"timeout":15},future=True,
+        )
+        store=db.Store(engine,"CI-only-commercial-identity-vault-test-0000000000000")
+        store.initialize_for_tests_only()
+        yield from _test_fixture(monkeypatch,store)
+        engine.dispose()
+
+
+def _test_fixture(monkeypatch,store):
     messages=[]
     monkeypatch.setattr(portal,"_configured",lambda:True)
     monkeypatch.setattr(portal,"_store",lambda:store)
