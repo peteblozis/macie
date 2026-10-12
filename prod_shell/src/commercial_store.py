@@ -400,6 +400,7 @@ class Store:
         self, *, event_id: str, event_type: str, event_at: int,
         tenant_id: str, subscription_status: str, customer_id: str,
         subscription_id: str, review_limit: int, billing_verified: bool,
+        reset_usage: bool = False,
     ) -> bool:
         """Caller MUST verify gateway signature first. Idempotent and ordered.
 
@@ -438,11 +439,18 @@ class Store:
                 status=subscription_status,
                 billing_verified=billing_verified,
                 review_limit=review_limit,
+                reviews_consumed=(0 if reset_usage else current["reviews_consumed"]),
                 last_billing_event_at=event_at,
             ))
             db.execute(insert(billing_events).values(
                 event_id=event_id,event_type=event_type,event_at=event_at))
             return True
+
+    def billing_customer(self, tenant_id: str) -> str | None:
+        with self.engine.connect() as db:
+            return db.execute(select(subscriptions.c.merchant_customer_id).where(
+                subscriptions.c.tenant_id==tenant_id
+            )).scalar_one_or_none()
 
     def tenant_for_customer_subscription(self, customer_id: str, subscription_id: str) -> str | None:
         if not customer_id or not subscription_id:
