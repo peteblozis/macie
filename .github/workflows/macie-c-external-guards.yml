@@ -1,0 +1,44 @@
+name: MACIE C External Access Gates
+
+on:
+  push:
+    branches:
+      - "test/macie-c-public-route-guards-*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-live-host:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Read-only checks of the real deployed MACIE C routes
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, time, urllib.error, urllib.request
+          root="https://macie.onrender.com"
+          def call(path,method="GET",data=None):
+              req=urllib.request.Request(root+path,method=method,data=data,headers={"Content-Type":"application/json","User-Agent":"macie-c-gate-test/1.0"})
+              for attempt in range(3):
+                  try:
+                      with urllib.request.urlopen(req,timeout=25) as resp:
+                          return resp.status,resp.read(512).decode("utf-8","replace")
+                  except urllib.error.HTTPError as exc:
+                      return exc.code,exc.read(512).decode("utf-8","replace")
+                  except (TimeoutError, OSError):
+                      if attempt==2: raise
+                      time.sleep(7)
+          probes=[
+              ("/macie/c", "GET", None, 200),
+              ("/macie/c/review","POST",json.dumps({"document":"public test only"}).encode(),401),
+              ("/macie/query","POST",json.dumps({"query":"do not run"}).encode(),401),
+              ("/macie/c/login","POST",json.dumps({"email":"invalid@example.invalid","password":"invalid"}).encode(),401),
+          ]
+          for path,method,data,expected in probes:
+              status,body=call(path,method,data)
+              assert status==expected, f"{method} {path}: expected {expected}, got {status}, response prefix {body[:100]!r}"
+              print(f"PASS {method} {path}: {status}")
+          PY
