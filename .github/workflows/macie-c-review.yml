@@ -33,3 +33,29 @@ jobs:
 
 # This workflow deliberately has NO provider API credentials.
 # Green here means software integration passes, NOT live multi-model readiness.
+
+  postgres-commercial-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        ports: ["5432:5432"]
+        env:
+          POSTGRES_USER: macie_ci_test
+          POSTGRES_PASSWORD: ephemeral_ci_password_only
+          POSTGRES_DB: macie_ci_test
+        options: >-
+          --health-cmd "pg_isready -U macie_ci_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      MACIE_C_TEST_POSTGRES_URL: postgresql+psycopg://macie_ci_test:ephemeral_ci_password_only@127.0.0.1:5432/macie_ci_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install pytest SQLAlchemy "psycopg[binary]" cryptography httpx
+      - name: Verify true PostgreSQL tenant isolation and key encryption
+        run: python -m pytest -q -s prod_shell/tests/test_commercial_postgres.py
