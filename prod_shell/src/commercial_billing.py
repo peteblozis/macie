@@ -96,10 +96,13 @@ class StripeGateway:
             )
         except (ValueError,stripe.error.SignatureVerificationError):
             raise ValueError("Merchant webhook signature invalid.") from None
+        # Stripe's signed Event is a StripeObject, NOT a regular dict.
+        # Convert nested event data to a normal dictionary before processing.
+        verified=event.to_dict_recursive()
         # Test events must not activate a live product, or vice versa.
-        if bool(event.get("livemode"))!=self.live_mode:
+        if bool(verified.get("livemode"))!=self.live_mode:
             raise ValueError("Merchant event environment mismatch.")
-        return dict(event)
+        return verified
 
     @staticmethod
     def _s(value: Any) -> str:
