@@ -43,6 +43,9 @@ def _configured() -> bool:
         os.environ.get("MACIE_C_SIGNED_TERMS_VERSION"),
         os.environ.get("MACIE_C_PRIVACY_VERSION"),
         os.environ.get("MACIE_C_CUSTOMER_SUPPORT_EMAIL"),
+        os.environ.get("MACIE_C_TERMS_URL","").startswith("https://"),
+        os.environ.get("MACIE_C_PRIVACY_URL","").startswith("https://"),
+        os.environ.get("MACIE_C_COMMERCIAL_PLAN_DISPLAY"),
         # Paid live access must not accidentally use sandbox invoices.
         os.environ.get("MACIE_C_MERCHANT_LIVE_MODE")=="1",
         os.environ.get("MACIE_C_COMMERCIAL_DATABASE_URL","").startswith(
@@ -153,6 +156,10 @@ def homepage():
         nonce=g.macie_commercial_nonce,
         user_id=identity[0] if identity else None,
         csrf=session.get("commercial_csrf","") if identity else "",
+        terms_url=os.environ.get("MACIE_C_TERMS_URL",""),
+        privacy_url=os.environ.get("MACIE_C_PRIVACY_URL",""),
+        support_email=os.environ.get("MACIE_C_CUSTOMER_SUPPORT_EMAIL",""),
+        plan_display=os.environ.get("MACIE_C_COMMERCIAL_PLAN_DISPLAY",""),
     )
 
 
