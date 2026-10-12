@@ -93,6 +93,11 @@ reviews = Table("c_reviews", META,
     Column("expires_at", Integer, nullable=False),
 )
 Index("c_reviews_tenant_user_ix", reviews.c.tenant_id, reviews.c.user_id)
+auth_throttles = Table("c_auth_throttles", META,
+    Column("key", String(64), primary_key=True),
+    Column("failures", Integer, nullable=False),
+    Column("expires_at", Integer, nullable=False),
+)
 billing_events = Table("c_billing_events", META,
     Column("event_id", String(160), primary_key=True),
     Column("event_at", Integer, nullable=False),
@@ -185,6 +190,31 @@ class Store:
 
     def _unseal(self, tenant_id: str, purpose: str, value: bytes) -> str:
         return self._cipher(tenant_id, purpose).decrypt(value).decode()
+
+    def auth_throttled(self, scope: str, remote: str, identity: str) -> bool:
+        digest=hashlib.sha256(f"{scope}:{remote}:{identity}".encode()).hexdigest()
+        with self.engine.connect() as db:
+            row=db.execute(select(auth_throttles).where(
+                auth_throttles.c.key==digest
+            )).mappings().first()
+        return bool(row and row["expires_at"]>_now() and row["failures"]>=6)
+
+    def record_auth_failure(self, scope: str, remote: str, identity: str) -> None:
+        digest=hashlib.sha256(f"{scope}:{remote}:{identity}".encode()).hexdigest()
+        with self.engine.begin() as db:
+            row=db.execute(select(auth_throttles).where(
+                auth_throttles.c.key==digest
+            )).mappings().first()
+            count=(row["failures"]+1) if row and row["expires_at"]>_now() else 1
+            db.execute(delete(auth_throttles).where(auth_throttles.c.key==digest))
+            db.execute(insert(auth_throttles).values(
+                key=digest,failures=count,expires_at=_now()+900
+            ))
+
+    def clear_auth_failures(self, scope: str, remote: str, identity: str) -> None:
+        digest=hashlib.sha256(f"{scope}:{remote}:{identity}".encode()).hexdigest()
+        with self.engine.begin() as db:
+            db.execute(delete(auth_throttles).where(auth_throttles.c.key==digest))
 
     def register_account(self, email: str, password: str, company: str) -> str:
         email = _normalize_email(email)
