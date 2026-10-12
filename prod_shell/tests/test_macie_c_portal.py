@@ -201,3 +201,49 @@ def test_logout_revokes_session(client):
     result = client.post("/macie/c/logout", headers={"X-CSRF-Token":csrf})
     assert result.status_code == 200
     assert client.post("/macie/c/review",json={"document":"x"}).status_code == 401
+
+
+def test_buyers_connect_and_revoke_own_key_through_browser_api(client):
+    csrf=sign_in(client)
+    missing=client.post("/macie/c/review",json={"document":"Public draft"},
+                        headers={"X-CSRF-Token":csrf})
+    assert missing.status_code==409
+    response=client.post("/macie/c/provider",json={"api_key":sample_key()},
+                         headers={"X-CSRF-Token":csrf})
+    assert response.status_code==200
+    assert response.json["connected"]
+    assert sample_key() not in response.get_data(as_text=True)
+    assert sample_key() not in str(response.headers)
+    status=client.get("/macie/c/provider")
+    assert status.status_code==200 and status.json["connected"]
+    assert sample_key() not in json.dumps(status.json)
+    assert sample_key() not in str(client.get_cookie("session"))
+    other=app.test_client()
+    sign_in(other,"tester@example.com","tester-pilot-strong-password")
+    assert not other.get("/macie/c/provider").json["connected"]
+    removal=client.delete("/macie/c/provider",headers={"X-CSRF-Token":csrf})
+    assert removal.status_code==200
+    assert not client.get("/macie/c/provider").json["connected"]
+
+
+def test_provider_connection_csrf_and_origin(client):
+    assert client.post("/macie/c/provider",json={"api_key":sample_key()}).status_code==401
+    csrf=sign_in(client)
+    assert client.post("/macie/c/provider",json={"api_key":sample_key()}).status_code==403
+    assert client.post("/macie/c/provider",json={"api_key":sample_key()},
+        headers={"X-CSRF-Token":csrf,"Origin":"https://evil.example"}).status_code==403
+    bad=client.post("/macie/c/provider",json={"api_key":"invalid"},
+        headers={"X-CSRF-Token":csrf})
+    assert bad.status_code==400
+
+
+def test_logout_erases_buyer_key_and_blocks_further_provider_use(client):
+    csrf=sign_in(client)
+    r=client.post("/macie/c/provider",json={"api_key":sample_key()},
+                  headers={"X-CSRF-Token":csrf})
+    assert r.status_code==200
+    sid=_session_id(client)
+    logout=client.post("/macie/c/logout",headers={"X-CSRF-Token":csrf})
+    assert logout.status_code==200
+    assert customer_keys.get_key("owner@example.com",sid) is None
+    assert client.get("/macie/c/provider").status_code==401
