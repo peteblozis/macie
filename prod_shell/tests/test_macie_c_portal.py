@@ -171,7 +171,7 @@ def test_valid_docx_extraction(client, monkeypatch):
     d.save(buf)
     buf.seek(0)
 
-    def fake_review(doc, goal, options=None):
+    def fake_review(doc, goal, options=None, *, customer_openrouter_key=None):
         assert "Important Realtor brochure proposal." in doc
         assert "HOMEstretch" in doc
         return {"status": "NON-CONSENSUS", "models_succeeded": [],
@@ -179,6 +179,7 @@ def test_valid_docx_extraction(client, monkeypatch):
                 "synthesized_review": "", "raw_fallback": ""}
     monkeypatch.setattr(portal, "review_document", fake_review)
     csrf = sign_in(client)
+    customer_keys.save_key("owner@example.com", _session_id(client), sample_key())
     r = client.post("/macie/c/review", data={
         "file": (buf, "sample.docx"), "goal": "Review",
     }, content_type="multipart/form-data", headers={"X-CSRF-Token": csrf})
