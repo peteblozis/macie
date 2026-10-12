@@ -893,27 +893,32 @@ def query():
     claude_text, claude_error = call_claude(user_query)
     chatgpt_text, chatgpt_error = call_chatgpt(user_query)
 
-    if claude_error and chatgpt_error:
+    # ACTS fail-closed: never certify a one-model result as MACIE consensus.
+    if claude_error or chatgpt_error or not claude_text or not chatgpt_text:
         return jsonify({
-            "error": f"Both models failed. Claude: {claude_error}. ChatGPT: {chatgpt_error}"
-        }), 500
+            "error": "MACIE consensus unavailable: both independent model responses are required.",
+            "consensus_status": "NON_CONSENSUS",
+            "model_statuses": [
+                {"name": "claude", "ok": bool(claude_text) and not claude_error},
+                {"name": "chatgpt", "ok": bool(chatgpt_text) and not chatgpt_error},
+            ],
+        }), 503
 
     synthesis_text = None
     if claude_text and chatgpt_text:
         synthesis_text = synthesize(user_query, claude_text, chatgpt_text)
 
-    if synthesis_text:
-        parsed = parse_synthesis(synthesis_text)
-    else:
-        parsed = {
-            "synthesized_answer": (
-                (claude_text or "") + ("\n\n---\n\n" + chatgpt_text if chatgpt_text else "")
-            ),
-            "confidence": "low",
-            "rationale": "Synthesis unavailable — showing raw model responses.",
-            "agreements": "",
-            "divergences": "",
-        }
+    if not synthesis_text:
+        return jsonify({
+            "error": "MACIE reconciliation unavailable; no consensus certified.",
+            "consensus_status": "NON_CONSENSUS",
+        }), 503
+    parsed = parse_synthesis(synthesis_text)
+    if not parsed["synthesized_answer"] or not parsed["agreements"] or not parsed["divergences"]:
+        return jsonify({
+            "error": "MACIE reconciliation incomplete; no consensus certified.",
+            "consensus_status": "NON_CONSENSUS",
+        }), 503
 
     log_run(
         request_id=request_id,
