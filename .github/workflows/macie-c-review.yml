@@ -25,9 +25,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: python -m pip install pytest pytest-asyncio httpx flask python-docx cryptography SQLAlchemy psycopg[binary]
+      - run: python -m pip install pytest pytest-asyncio httpx flask python-docx cryptography SQLAlchemy psycopg[binary] stripe
       - name: Verify MACIE C real engine code with synthetic reviewers
-        run: python -m pytest -q -s prod_shell/tests/test_macie_c.py prod_shell/tests/test_macie_c_openrouter.py prod_shell/tests/test_macie_c_portal.py prod_shell/tests/test_commercial_access.py prod_shell/tests/test_commercial_store.py prod_shell/tests/test_commercial_portal.py prod_shell/tests/test_customer_openrouter_keys.py prod_shell/tests/test_isolation.py sfc_ai_router/tests/test_router.py
+        run: python -m pytest -q -s prod_shell/tests/test_macie_c.py prod_shell/tests/test_macie_c_openrouter.py prod_shell/tests/test_macie_c_portal.py prod_shell/tests/test_commercial_access.py prod_shell/tests/test_commercial_store.py prod_shell/tests/test_commercial_portal.py prod_shell/tests/test_commercial_billing.py prod_shell/tests/test_customer_openrouter_keys.py prod_shell/tests/test_isolation.py sfc_ai_router/tests/test_router.py
       - name: Check Python syntax
         run: python -m compileall -q prod_shell/src prod_shell/tests sfc_ai_router macie_web.py
 
