@@ -37,6 +37,14 @@ def configure_commercial(app):
 def _configured() -> bool:
     return all((
         os.environ.get("MACIE_C_COMMERCIAL_ENABLED")=="1",
+        # Separate one-time production release decision; never enable from
+        # account signup, payment callback, test fixture, or deployment alone.
+        os.environ.get("MACIE_C_COMMERCIAL_RELEASE_APPROVED")=="1",
+        os.environ.get("MACIE_C_SIGNED_TERMS_VERSION"),
+        os.environ.get("MACIE_C_PRIVACY_VERSION"),
+        os.environ.get("MACIE_C_CUSTOMER_SUPPORT_EMAIL"),
+        # Paid live access must not accidentally use sandbox invoices.
+        os.environ.get("MACIE_C_MERCHANT_LIVE_MODE")=="1",
         os.environ.get("MACIE_C_COMMERCIAL_DATABASE_URL","").startswith(
             ("postgresql://","postgresql+psycopg://")),
         len(os.environ.get("MACIE_C_COMMERCIAL_VAULT_SECRET",""))>=40,
