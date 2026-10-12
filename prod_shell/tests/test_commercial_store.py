@@ -222,7 +222,7 @@ def test_sqlite_is_test_only_and_production_needs_postgres(monkeypatch,store):
         db.production_engine()
     from sqlalchemy.exc import OperationalError
     with pytest.raises(OperationalError):
-        db.Store(db.testing_engine(),"another-test-secret-0123456789-abcdef").assert_schema()
+        db.Store(db.testing_engine(),"another-test-secret-0123456789-abcdefghij0123456789").assert_schema()
 
 
 def test_expired_rejection_and_deletion(store,buyer,monkeypatch):
