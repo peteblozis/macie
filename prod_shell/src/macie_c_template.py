@@ -70,7 +70,7 @@ footer{text-align:center;font-size:12px;color:#687c81;margin:24px}
 <details><summary>ChatGPT — independent review</summary><pre id="chatgptReview"></pre></details>
 </section>
 {% endif %}
-</main><footer>ActionForge Labs · MACIE C · No automatic publication · MACIE A remains private</footer>
+</main><footer>ActionForge Labs · MACIE C · No automatic publication · Commercial signup not yet released · Controlled pilot access only</footer>
 <script nonce="{{ nonce }}">
 (function(){
 "use strict";
