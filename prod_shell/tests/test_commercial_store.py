@@ -235,3 +235,55 @@ def test_expired_rejection_and_deletion(store,buyer,monkeypatch):
     assert store.review_status(uid,tid,job) is None
     assert store.delete_expired_reviews()==1
     assert store.start_job(job) is None
+
+
+def test_durable_queue_rediscovers_post_restart_and_claims_only_once(store,buyer):
+    uid,tid=buyer
+    authorize(store,tid,limit=4)
+    store.set_key(uid,tid,key())
+    first=store.reserve_review(uid,tid,"Review one","Improve one")
+    second=store.reserve_review(uid,tid,"Review two","Improve two")
+    assert store.queued_review_ids()==[first,second]
+    assert store.start_job(first)
+    assert store.queued_review_ids()==[second]
+    assert store.start_job(first) is None
+    assert store.start_job(second)
+    assert store.queued_review_ids()==[]
+    assert store.complete_job(first,{"status":"CONSENSUS"})
+    assert store.complete_job(second,{"status":"NON-CONSENSUS"})
+    assert store.review_status(uid,tid,first)["status"]=="finished"
+    assert store.review_status(uid,tid,second)["status"]=="finished"
+
+
+def test_stale_running_jobs_are_failed_without_provider_replay(store,buyer,monkeypatch):
+    uid,tid=buyer
+    authorize(store,tid,limit=3)
+    store.set_key(uid,tid,key())
+    first=store.reserve_review(uid,tid,"Unfinished sensitive text","Review")
+    assert store.start_job(first)
+    # Simulate a web worker crash whose start was more than 12 minutes ago.
+    from sqlalchemy import update
+    with store.engine.begin() as conn:
+        conn.execute(update(db.reviews).where(db.reviews.c.id==first).values(
+            created_at=int(time.time())-1000,
+        ))
+    assert store.fail_abandoned_jobs(age_seconds=720)==1
+    assert store.fail_abandoned_jobs(age_seconds=720)==0
+    assert store.review_status(uid,tid,first)["status"]=="failed"
+    assert store.start_job(first) is None
+    assert store.complete_job(first,{"status":"CONSENSUS"}) is False
+    with store.engine.connect() as conn:
+        record=conn.execute(select(db.reviews).where(db.reviews.c.id==first)).mappings().one()
+    assert record["encrypted_document"]==b""
+    assert record["encrypted_goal"]==b""
+
+
+@pytest.mark.parametrize("invalid",[-1,0,101,True])
+def test_queue_poll_limits_fail_closed(store,invalid):
+    with pytest.raises(ValueError):
+        store.queued_review_ids(invalid)
+
+
+def test_failure_threshold_cannot_be_unsafe(store):
+    with pytest.raises(ValueError):
+        store.fail_abandoned_jobs(age_seconds=10)
