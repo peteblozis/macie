@@ -55,6 +55,13 @@ pre{background:#ecf3f2;padding:16px;white-space:pre-wrap;overflow-wrap:anywhere;
 <button type="submit">Connect or replace my key</button><button id="disconnect" type="button">Delete my key</button></form>
 <p id="providerState" class="subtle"></p></div></div>
 </section>
+<section id="promptEnhance" {% if not user_id %}class="hide"{% endif %}>
+<h2>MACIE B · Prompt consensus</h2>
+<p>Paste a prompt created anywhere for independent Claude and ChatGPT enhancement.</p>
+<form id="promptForm"><label>Original prompt<textarea name="prompt" maxlength="20000" required></textarea></label>
+<button type="submit">Enhance prompt</button></form>
+<p id="promptStatus"></p><pre id="promptOutput"></pre>
+</section>
 <section id="review" {% if not user_id %}class="hide"{% endif %}>
 <h2>Review existing content</h2>
 <form id="reviewForm"><label>Paste your existing document<textarea name="document" maxlength="50000" required placeholder="Paste a previously drafted brochure, letter, proposal or procedure."></textarea></label>
