@@ -23,6 +23,40 @@ class MacieBTests(unittest.TestCase):
         result=self.run_review(synthesize=lambda *args: "")
         self.assertEqual(result["status"], "NON-CONSENSUS")
 
+    def test_customer_key_requires_real_two_model_identity(self):
+        from prod_shell.src.macie_b import enhance_with_customer_key
+        class Response:
+            def __init__(self,model):
+                self.model=model
+            def raise_for_status(self): pass
+            def json(self):
+                return {"model":self.model,"choices":[{"message":{"content":"Improved"}}]}
+        class FakeTransport:
+            calls=[]
+            def post(self,url,headers,json,timeout):
+                self.calls.append(json["model"])
+                return Response(json["model"])
+        fake=FakeTransport()
+        result=enhance_with_customer_key("Prompt from another app",
+            "sk-or-v1-"+"x"*40,transport=fake)
+        self.assertEqual(result["status"],"CONSENSUS")
+        self.assertEqual(len(fake.calls),3)
+        self.assertTrue(any(m.startswith("openai/") for m in fake.calls))
+        self.assertTrue(any(m.startswith("anthropic/") for m in fake.calls))
+
+    def test_model_substitution_cannot_pass_consensus(self):
+        from prod_shell.src.macie_b import enhance_with_customer_key
+        class Response:
+            def raise_for_status(self): pass
+            def json(self):
+                return {"model":"openai/gpt-5.2",
+                        "choices":[{"message":{"content":"Improved"}}]}
+        class WrongProvider:
+            def post(self,*args,**kwargs):return Response()
+        result=enhance_with_customer_key("Prompt","sk-or-v1-"+"x"*40,
+                                         transport=WrongProvider())
+        self.assertEqual(result["status"],"NON-CONSENSUS")
+
     def test_empty_prompt_denied(self):
         with self.assertRaises(ValueError):
             self.run_review(" ")
