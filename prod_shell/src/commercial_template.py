@@ -104,6 +104,26 @@ for(const [form,url,opts] of [
  ["signup","/signup",{}],["resend","/resend-verification",{}],
  ["login","/login",{}],["forgot","/request-reset",{}],
 ]){if($(form))bind(form,url,opts);}
+const promptForm=$("promptForm");
+if(promptForm)promptForm.addEventListener("submit",async e=>{
+ e.preventDefault();
+ const button=promptForm.querySelector("button");button.disabled=true;
+ try{
+  $("promptOutput").textContent="";
+  $("promptStatus").textContent="Submitting prompt...";
+  const job=await request("/prompt-enhance","POST",{prompt:promptForm.elements.prompt.value});
+  for(let attempt=0;attempt<45;attempt++){
+   await new Promise(resolve=>setTimeout(resolve,2000));
+   const state=await request("/prompt-enhance/"+encodeURIComponent(job.job_id));
+   if(state.status==="queued"||state.status==="running")continue;
+   $("promptStatus").textContent="Review status: "+state.status;
+   $("promptOutput").textContent=JSON.stringify(state,null,2);
+   return;
+  }
+  $("promptStatus").textContent="Still processing. Check again later.";
+ }catch(err){$("promptStatus").textContent=err.message;}
+ finally{button.disabled=false;}
+});
 const account=$("account");
 if(account&&!account.classList.contains("hide")){
  const refresh=async()=>{const state=await request("/status");
