@@ -51,7 +51,12 @@ def _protect_legacy_paid_query():
         import hmac
         expected = os.environ.get("MACIE_ADMIN_KEY", "")
         supplied = request.headers.get("X-Admin-Key", "")
-        if not expected or not hmac.compare_digest(expected, supplied):
+        admin_ok = (
+            bool(expected)
+            and bool(supplied)
+            and hmac.compare_digest(expected, supplied)
+        )
+        if not admin_ok and not _cloudflare_access_email():
             return jsonify({"error": "Legacy MACIE query requires admin authentication."}), 401
 
 
@@ -120,6 +125,48 @@ if os.environ.get("MACIE_C_SMOKE_ON_BOOT", "") == "1":
         daemon=True,
     ).start()
 
+
+
+def _cloudflare_access_email():
+    """Return an allowed email from a cryptographically verified Access JWT.
+
+    Direct Render requests cannot gain MACIE A access by spoofing Cloudflare
+    headers: the JWT signature, issuer, audience, expiry, and owner allowlist
+    must all validate first.
+    """
+    token = (
+        request.headers.get("Cf-Access-Jwt-Assertion", "")
+        or request.cookies.get("CF_Authorization", "")
+    )
+    team = os.environ.get("CLOUDFLARE_ACCESS_TEAM_DOMAIN", "").strip()
+    audience = os.environ.get("CLOUDFLARE_ACCESS_AUD", "").strip()
+    allowed = {
+        email.strip().lower()
+        for email in os.environ.get("MACIE_A_ALLOWED_EMAILS", "").split(",")
+        if email.strip()
+    }
+    if not token or not team or not audience or not allowed:
+        return None
+
+    team = team.removeprefix("https://").rstrip("/")
+    issuer = f"https://{team}"
+    try:
+        import jwt
+        signing_key = jwt.PyJWKClient(
+            f"{issuer}/cdn-cgi/access/certs"
+        ).get_signing_key_from_jwt(token).key
+        claims = jwt.decode(
+            token,
+            signing_key,
+            algorithms=["RS256"],
+            audience=audience,
+            issuer=issuer,
+            options={"require": ["exp", "iat", "iss", "aud"]},
+        )
+        email = str(claims.get("email", "")).strip().lower()
+        return email if email in allowed else None
+    except Exception:
+        return None
 
 
 def _require_admin_key():
@@ -880,7 +927,15 @@ def parse_synthesis(text: str) -> dict:
 
 
 @app.route("/macie")
+@app.route("/macie/a")
 def index():
+    # Cloudflare Access protects the owner-only MACIE A interface. Public
+    # traffic remains on the separate commercial MACIE C path.
+    if _cloudflare_access_email():
+        return render_template_string(
+            HTML,
+            substitution_active=cfg.SUBSTITUTION_ACTIVE,
+        )
     from flask import redirect
     return redirect("/macie/c", code=302)
 
