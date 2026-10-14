@@ -12,6 +12,7 @@ import time
 
 import pytest
 
+import macie_web
 from macie_web import app
 from prod_shell.src import macie_c_portal as portal
 from prod_shell.src import customer_openrouter_keys as customer_keys
@@ -93,6 +94,28 @@ def test_legacy_paid_query_requires_admin_auth(client):
     r = client.get("/macie")
     assert r.status_code == 302
     assert "/macie/c" in r.headers["Location"]
+
+
+def test_verified_cloudflare_owner_restores_private_macie_a(client, monkeypatch):
+    monkeypatch.setattr(
+        macie_web,
+        "_cloudflare_access_email",
+        lambda: "peteblozis@gmail.com",
+    )
+
+    home = client.get("/macie")
+    assert home.status_code == 200
+    assert b"Multi-AI" in home.data
+    assert b"Ask MACIE" in home.data
+
+    alias = client.get("/macie/a")
+    assert alias.status_code == 200
+
+    # The verified Access identity passes the paid-query authentication
+    # boundary. Empty input stops before any provider call is made.
+    query = client.post("/macie/query", json={})
+    assert query.status_code == 400
+    assert query.json["error"] == "No query provided"
 
 
 def test_csrf_and_origin_rejected(client):
