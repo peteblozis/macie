@@ -93,7 +93,10 @@ def test_legacy_paid_query_requires_admin_auth(client):
     assert r.status_code == 401
     r = client.get("/macie")
     assert r.status_code == 302
-    assert "/macie/c" in r.headers["Location"]
+    assert "/macie/a" in r.headers["Location"]
+    root = client.get("/")
+    assert root.status_code == 302
+    assert "/macie/a" in root.headers["Location"]
 
 
 def test_verified_cloudflare_owner_restores_private_macie_a(client, monkeypatch):

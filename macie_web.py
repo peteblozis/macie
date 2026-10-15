@@ -936,6 +936,13 @@ def parse_synthesis(text: str) -> dict:
     return result
 
 
+@app.route("/")
+def launch_macie_a():
+    """Canonical browser entry for the owner-only MACIE A login."""
+    from flask import redirect
+    return redirect("/macie/a", code=302)
+
+
 @app.route("/macie")
 @app.route("/macie/a")
 def index():
@@ -947,7 +954,7 @@ def index():
             substitution_active=cfg.SUBSTITUTION_ACTIVE,
         )
     from flask import redirect
-    return redirect("/macie/c", code=302)
+    return redirect("/macie/a", code=302)
 
 
 @app.route("/macie/query", methods=["POST"])
