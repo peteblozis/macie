@@ -33,6 +33,11 @@ app = Flask(__name__)
 from prod_shell.src.macie_c_portal import configure_portal
 configure_portal(app)
 
+# MACIE B is a distinct private pilot for prompts created anywhere.
+# It shares hardened pilot authentication only; no MACIE A context is loaded.
+from prod_shell.src.macie_b_portal import configure_macie_b
+configure_macie_b(app)
+
 # Independent commercial routes have their own authenticated user/tenant
 # lifecycle. They remain disabled until real Postgres, identity, merchant,
 # and operator controls are in place; do NOT activate the sale by deployment.
