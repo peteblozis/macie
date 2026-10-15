@@ -38,6 +38,11 @@ configure_portal(app)
 from prod_shell.src.macie_b_portal import configure_macie_b
 configure_macie_b(app)
 
+# MACIE A keeps a separate owner-only direct entrance so a Cloudflare Access
+# policy failure cannot make the private consensus engine unreachable.
+from prod_shell.src.macie_a_portal import configure_macie_a
+configure_macie_a(app)
+
 # Independent commercial routes have their own authenticated user/tenant
 # lifecycle. They remain disabled until real Postgres, identity, merchant,
 # and operator controls are in place; do NOT activate the sale by deployment.
@@ -820,7 +825,7 @@ def call_claude(query: str):
             api_key = os.environ.get("OPENROUTER_API_KEY", "")
             if not api_key:
                 return "", "OPENROUTER_API_KEY not set"
-            model = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
+            model = os.environ.get("CLAUDE_MODEL", "anthropic/claude-sonnet-4.6")
             client = OpenAI(api_key=api_key, base_url="https://openrouter.ai/api/v1")
             response = client.chat.completions.create(
                 model=model,
@@ -853,7 +858,7 @@ def call_chatgpt(query: str):
             return "", "OPENAI_API_KEY not set"
         client = OpenAI(api_key=api_key)
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model=os.environ.get("CHATGPT_MODEL", "gpt-4.1"),
             messages=[{"role": "user", "content": query}],
             max_tokens=2048, temperature=0.3)
         return response.choices[0].message.content or "", None
@@ -871,7 +876,7 @@ def synthesize(question: str, response_a: str, response_b: str):
         prompt = SYNTHESIS_PROMPT.format(
             question=question, response_a=response_a, response_b=response_b)
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model=os.environ.get("CHATGPT_MODEL", "gpt-4.1"),
             messages=[{"role": "user", "content": prompt}],
             max_tokens=2048, temperature=0.2)
         return response.choices[0].message.content or ""
