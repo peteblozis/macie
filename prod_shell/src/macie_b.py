@@ -8,8 +8,8 @@ import httpx
 
 MAX_PROMPT_CHARS = 20000
 ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
-CLAUDE_MODEL = "anthropic/claude-sonnet-4.5"
-GPT_MODEL = "openai/gpt-5.2"
+CLAUDE_MODEL = "anthropic/claude-sonnet-4.6"
+GPT_MODEL = "openai/gpt-4.1"
 
 def enhance_prompt(prompt, *, claude_review, chatgpt_review, synthesize):
     if not isinstance(prompt, str) or not prompt.strip():
