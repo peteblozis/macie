@@ -74,6 +74,12 @@ def _ready() -> bool:
     return os.environ.get("MACIE_A_DIRECT_ENABLED") == "1" and bool(_allowed()) and bool(auth._users()) and len(os.environ.get("MACIE_C_SESSION_SECRET", "")) >= 40
 
 
+def _cloudflare_user() -> str | None:
+    # Delayed import avoids a circular import while macie_web constructs app.
+    import macie_web
+    return macie_web._cloudflare_access_email()
+
+
 def _csrf_ok() -> bool:
     supplied = request.headers.get("X-CSRF-Token", "")
     stored = session.get("macie_a_csrf", "")
@@ -83,7 +89,7 @@ def _csrf_ok() -> bool:
 @bp.before_request
 def protect_portal():
     g.macie_a_nonce = secrets.token_urlsafe(18)
-    if not _ready():
+    if not _cloudflare_user() and not _ready():
         return jsonify({"error": "MACIE A direct entrance is not configured."}), 503
 
 
@@ -102,6 +108,13 @@ def security_headers(response):
 @bp.route("", methods=["GET"])
 @bp.route("/", methods=["GET"])
 def home():
+    cloudflare_email = _cloudflare_user()
+    if cloudflare_email:
+        import macie_web
+        return make_response(render_template_string(
+            macie_web.HTML,
+            substitution_active=macie_web.cfg.SUBSTITUTION_ACTIVE,
+        ))
     email = _current_user()
     return make_response(render_template_string(PAGE_HTML, email=email, csrf=session.get("macie_a_csrf", "") if email else "", nonce=g.macie_a_nonce))
 
