@@ -23,6 +23,7 @@ from prod_shell.src.commercial_store import Store, production_engine
 from prod_shell.src.commercial_template import HTML
 from prod_shell.src.customer_openrouter_keys import verify_openrouter_key
 from prod_shell.src.macie_c import review_document
+from prod_shell.src.macie_b import enhance_with_customer_key, MAX_PROMPT_CHARS
 from prod_shell.src.macie_c_portal import _submitted_document, _scrub_secret
 
 bp=Blueprint("macie_c_commercial",__name__,url_prefix="/macie/c/commercial")
@@ -419,6 +420,63 @@ def submit_review():
         return jsonify({"error":str(exc)}),400
     except PermissionError as exc:
         return jsonify({"error":str(exc)}),403
+
+
+def _run_prompt_job(store: Store, job_id: str):
+    row=store.start_job(job_id)
+    if not row:
+        return
+    uid,tenant,prompt,_goal=row
+    key=store.get_key(uid,tenant)
+    if not key:
+        store.complete_job(job_id,None)
+        return
+    try:
+        result=enhance_with_customer_key(prompt,key)
+        store.complete_job(job_id,_scrub_secret(result,key))
+    except Exception:
+        store.complete_job(job_id,None)
+
+
+@bp.route("/prompt-enhance",methods=["POST"])
+def submit_prompt_enhancement():
+    """MACIE B uses the existing verified commercial account and quota.
+
+    It remains OFF unless explicitly included in the commercial subscription.
+    Never accepts keys or paid-status assertions from the request body.
+    """
+    if os.environ.get("MACIE_B_INCLUDED_IN_PLAN")!="1":
+        return jsonify({"error":"MACIE B is not enabled in this subscription."}),503
+    identity,err=_require_account()
+    if err:return err
+    denied=_require_post()
+    if denied:return denied
+    try:
+        body=_body(MAX_PROMPT_CHARS*4+1000)
+        prompt=body.get("prompt")
+        if not isinstance(prompt,str) or not prompt.strip() or len(prompt)>MAX_PROMPT_CHARS:
+            raise ValueError("Provide a nonempty prompt of at most 20000 characters.")
+        store=_store()
+        store.delete_expired_reviews()
+        job_id=store.reserve_review(identity[0],identity[1],prompt,"MACIE-B-PROMPT")
+        _WORKERS.submit(_run_prompt_job,store,job_id)
+        return jsonify({"job_id":job_id,"status":"queued","product":"MACIE-B"}),202
+    except ValueError as exc:
+        return jsonify({"error":str(exc)}),400
+    except PermissionError as exc:
+        return jsonify({"error":str(exc)}),403
+
+
+@bp.route("/prompt-enhance/<job_id>",methods=["GET"])
+def prompt_enhancement_status(job_id):
+    if os.environ.get("MACIE_B_INCLUDED_IN_PLAN")!="1":
+        return jsonify({"error":"MACIE B is not enabled in this subscription."}),503
+    identity,err=_require_account()
+    if err:return err
+    value=_store().review_status(identity[0],identity[1],job_id)
+    if value is None:
+        return jsonify({"error":"No accessible prompt review with that ID."}),404
+    return jsonify(value)
 
 
 @bp.route("/review/<job_id>",methods=["GET"])
