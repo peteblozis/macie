@@ -28,6 +28,11 @@ from registry import registry as agent_registry
 
 app = Flask(__name__)
 
+# Private UPSCAN review bridge stays disabled until authenticated subscription
+# dispatch, the private return channel and persistent storage are configured.
+from core_shell.src.upscan_bridge import configure_upscan
+configure_upscan(app)
+
 # Customer document review uses a separate authenticated session and
 # never mounts SageForge Core context or reconfigures Render per request.
 from prod_shell.src.macie_c_portal import configure_portal
