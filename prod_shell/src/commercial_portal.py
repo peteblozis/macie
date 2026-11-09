@@ -1,4 +1,4 @@
-"""MACIE C commercial self-service API (closed until infrastructure verified).
+"""MACIEC commercial self-service API (closed until infrastructure verified).
 
 This intentionally runs BESIDE the existing controlled pilot. It cannot
 serve a paying customer until explicitly enabled with production Postgres,
@@ -140,7 +140,7 @@ def _who() -> tuple[str,str] | None:
 def _require_account():
     identity=_who()
     if not identity:
-        return None,(jsonify({"error":"Sign in to your own MACIE C account."}),401)
+        return None,(jsonify({"error":"Sign in to your own MACIEC account."}),401)
     return identity,None
 
 
@@ -163,7 +163,7 @@ def _body(max_bytes=4000):
 def commercial_gate():
     g.macie_commercial_nonce=secrets.token_urlsafe(18)
     if not _configured():
-        return jsonify({"error":"Commercial MACIE C is not yet available."}),503
+        return jsonify({"error":"Commercial MACIEC is not yet available."}),503
 
 
 @bp.after_request
@@ -440,13 +440,13 @@ def _run_prompt_job(store: Store, job_id: str):
 
 @bp.route("/prompt-enhance",methods=["POST"])
 def submit_prompt_enhancement():
-    """MACIE B uses the existing verified commercial account and quota.
+    """MACIEB uses the existing verified commercial account and quota.
 
     It remains OFF unless explicitly included in the commercial subscription.
     Never accepts keys or paid-status assertions from the request body.
     """
     if os.environ.get("MACIE_B_INCLUDED_IN_PLAN")!="1":
-        return jsonify({"error":"MACIE B is not enabled in this subscription."}),503
+        return jsonify({"error":"MACIEB is not enabled in this subscription."}),503
     identity,err=_require_account()
     if err:return err
     denied=_require_post()
@@ -460,7 +460,7 @@ def submit_prompt_enhancement():
         store.delete_expired_reviews()
         job_id=store.reserve_review(identity[0],identity[1],prompt,"MACIE-B-PROMPT")
         _WORKERS.submit(_run_prompt_job,store,job_id)
-        return jsonify({"job_id":job_id,"status":"queued","product":"MACIE-B"}),202
+        return jsonify({"job_id":job_id,"status":"queued","product":"MACIEB"}),202
     except ValueError as exc:
         return jsonify({"error":str(exc)}),400
     except PermissionError as exc:
@@ -470,7 +470,7 @@ def submit_prompt_enhancement():
 @bp.route("/prompt-enhance/<job_id>",methods=["GET"])
 def prompt_enhancement_status(job_id):
     if os.environ.get("MACIE_B_INCLUDED_IN_PLAN")!="1":
-        return jsonify({"error":"MACIE B is not enabled in this subscription."}),503
+        return jsonify({"error":"MACIEB is not enabled in this subscription."}),503
     identity,err=_require_account()
     if err:return err
     value=_store().review_status(identity[0],identity[1],job_id)
