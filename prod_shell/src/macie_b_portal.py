@@ -1,6 +1,6 @@
-"""MACIE B private operational pilot.
+"""MACIEB private operational pilot.
 
-This route is separate from MACIE A and MACIE C. It reuses only the hardened
+This route is separate from MACIEA and MACIEC. It reuses only the hardened
 pilot identity/session/key controls; it never loads private SageForge context.
 """
 from __future__ import annotations
@@ -75,7 +75,7 @@ def _run_job(job_id: str, prompt: str):
 def protect_portal():
     g.macie_b_nonce = secrets.token_urlsafe(18)
     if not _is_ready():
-        return jsonify({"error": "MACIE B private pilot is not yet configured."}), 503
+        return jsonify({"error": "MACIEB private pilot is not yet configured."}), 503
 
 
 @bp.after_request
@@ -171,7 +171,7 @@ def submit_enhancement():
             "result": None,
         }
     _EXECUTOR.submit(_run_job, job_id, prompt)
-    return jsonify({"job_id": job_id, "status": "queued", "product": "MACIE-B"}), 202
+    return jsonify({"job_id": job_id, "status": "queued", "product": "MACIEB"}), 202
 
 
 @bp.route("/enhance/<job_id>", methods=["GET"])
@@ -184,7 +184,7 @@ def enhancement_status(job_id):
         job = _jobs.get(job_id)
         if not job or job["owner"] != shared._current_user():
             return jsonify({"error": "Prompt job not found or expired."}), 404
-        response = {"status": job["state"], "product": "MACIE-B"}
+        response = {"status": job["state"], "product": "MACIEB"}
         if job["state"] == "finished":
             response["result"] = job["result"]
         if job["state"] == "failed":

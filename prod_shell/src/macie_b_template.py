@@ -1,8 +1,8 @@
-"""Private pilot browser interface for MACIE B."""
+"""Private pilot browser interface for MACIEB."""
 PAGE_HTML = r"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>MACIE B | Prompt Consensus</title>
+<title>MACIEB | Prompt Consensus</title>
 <style>
 :root{color-scheme:dark;--bg:#09111c;--panel:#101d2d;--line:#29415e;--text:#edf4ff;--muted:#9fb0c5;--accent:#4fd1c5;--bad:#ff8f8f}
 *{box-sizing:border-box}body{margin:0;background:linear-gradient(145deg,#07101a,#0b1624);color:var(--text);font:16px system-ui,sans-serif}
@@ -17,8 +17,8 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#07111d;border:1px so
 .notice{font-size:.9rem;color:var(--muted)}.error{color:var(--bad)}
 </style></head><body><main>
 <div class="brand">ACTIONFORGE LABS · PRIVATE PILOT</div>
-<h1>MACIE B</h1>
-<p>Prompt consensus. Paste a prompt created anywhere. Independent Claude and ChatGPT reviews are reconciled into one improved prompt. MACIE A private SageForge context is never loaded.</p>
+<h1>MACIEB</h1>
+<p>Prompt consensus. Paste a prompt created anywhere. Independent Claude and ChatGPT reviews are reconciled into one improved prompt. MACIEA private SageForge context is never loaded.</p>
 {% if not email %}
 <section class="card"><h2>Sign in</h2>
 <form id="loginForm"><label>Email<input name="email" type="email" autocomplete="username" required></label>
@@ -37,7 +37,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#07111d;border:1px so
 <button type="submit">Run Claude + ChatGPT consensus</button></form>
 <p id="jobStatus" class="notice"></p><pre id="output" class="hide"></pre></section>
 {% endif %}
-<p class="notice">MACIE B private operational pilot · Buyer-key architecture · No automatic publication</p>
+<p class="notice">MACIEB private operational pilot · Buyer-key architecture · No automatic publication</p>
 </main>
 <script nonce="{{ nonce }}">
 const csrf={{ csrf|tojson }};
