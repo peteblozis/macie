@@ -7,6 +7,11 @@ FILES = [
     ROOT / "prod_shell/src/macie_b.py",
     ROOT / "prod_shell/src/macie_b_portal.py",
     ROOT / "prod_shell/src/commercial_portal.py",
+    ROOT / "prod_shell/src/macie_a_portal.py",
+    ROOT / "prod_shell/src/macie_c_portal.py",
+    ROOT / "prod_shell/src/macie_b_template.py",
+    ROOT / "prod_shell/src/macie_c_template.py",
+    ROOT / "docs/MACIE_PRODUCT_BOUNDARIES_2026.md",
 ]
 
 class CanonicalNamesTest(unittest.TestCase):
