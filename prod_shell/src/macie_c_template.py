@@ -1,4 +1,4 @@
-"""Standalone no-dependency MACIE C browser interface.
+"""Standalone no-dependency MACIEC browser interface.
 
 The source and results stay in browser memory until the operator downloads
 them. The server temporarily holds the job in memory; it never publishes.
@@ -6,7 +6,7 @@ them. The server temporarily holds the job in memory; it never publishes.
 PAGE_HTML = r"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MACIE C | Document Review</title>
+<title>MACIEC | Document Review</title>
 <style>
 :root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#182936;background:#eef3f4}
 *{box-sizing:border-box}body{margin:0}header{background:#123342;color:white;padding:22px 5vw;display:flex;align-items:center;justify-content:space-between;gap:16px}
@@ -30,14 +30,14 @@ details{margin:15px 0;border:1px solid #d7e4e6;border-radius:8px;padding:13px}su
 footer{text-align:center;font-size:12px;color:#687c81;margin:24px}
 @media(max-width:720px){.columns{grid-template-columns:1fr}.card{padding:18px}header{padding:20px}.brand span{display:block;margin:5px 0 0}}
 </style></head><body>
-<header><div class="brand">MACIE C <span>Independent AI document review</span></div>
+<header><div class="brand">MACIEC <span>Independent AI document review</span></div>
 {% if email %}<button class="quiet" id="logout">Sign out</button>{% else %}
 <div style="font-size:13px;opacity:.8">Authorized access only</div>{% endif %}</header>
 <main>
 {% if not email %}
 <section class="card" style="max-width:500px;margin:24px auto">
-<h1>Sign in to MACIE C</h1>
-<p class="muted">Use the individual account credentials provided by the MACIE administrator. MACIE A private context is not part of this service.</p>
+<h1>Sign in to MACIEC</h1>
+<p class="muted">Use the individual account credentials provided by the MACIE administrator. MACIEA private context is not part of this service.</p>
 <form id="loginForm"><label for="email">Email</label><input id="email" type="email" required autocomplete="username">
 <label for="password">Password</label><input id="password" type="password" required autocomplete="current-password">
 <p id="error" role="alert"></p><button type="submit">Sign in securely</button></form>
@@ -46,7 +46,7 @@ footer{text-align:center;font-size:12px;color:#687c81;margin:24px}
 {% else %}
 <section class="card" id="providerPanel">
 <h1>Step 1 — Connect your own AI key</h1>
-<p>MACIE C uses <strong>your OpenRouter account</strong> for Claude and GPT reviews. Your provider charges apply to your own OpenRouter credits. This is separate from the MACIE C product subscription, which is not yet commercially available.</p>
+<p>MACIEC uses <strong>your OpenRouter account</strong> for Claude and GPT reviews. Your provider charges apply to your own OpenRouter credits. This is separate from the MACIEC product subscription, which is not yet commercially available.</p>
 <p class="muted">Create a dedicated <strong>standard API key</strong> in your OpenRouter account. Set an account/key spending limit and keep the key private. Do not use a management or administrative key. <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noreferrer noopener">Open OpenRouter key settings</a>.</p>
 <form id="providerForm">
 <label for="providerKey">Your OpenRouter API key (encrypted temporarily on the server for this sign-in)</label>
@@ -59,7 +59,7 @@ placeholder="sk-or-v1-..." maxlength="400" required>
 </div>
 <p id="providerStatus" role="status" class="muted">Checking your provider connection...</p>
 </form>
-<div class="notice">This controlled pilot encrypts the key in temporary server memory. You will connect it again after sign-out or server restart. The sellable product requires a secure, durable customer-owned key vault; MACIE C never asks its founder to supply your provider key.</div>
+<div class="notice">This controlled pilot encrypts the key in temporary server memory. You will connect it again after sign-out or server restart. The sellable product requires a secure, durable customer-owned key vault; MACIEC never asks its founder to supply your provider key.</div>
 </section>
 <section class="card">
 <h1>Step 2 — Review an existing document</h1>
@@ -71,12 +71,12 @@ placeholder="sk-or-v1-..." maxlength="400" required>
 <label for="document">Existing material</label><textarea id="document" name="document" maxlength="50000" placeholder="Paste an existing brochure, script, proposal, or other material here..."></textarea></div>
 <div><label for="goal">Review instructions</label><textarea id="goal" name="goal" maxlength="2000">Identify unsupported statements and practical weaknesses, improve clarity and usefulness, preserve facts, explain the changes, and flag unresolved disagreements. Provide an improved ready-to-review version.</textarea>
 <p class="muted">Examples: “Check claims in this Realtor brochure, then rewrite it”; “Critique this proposal for feasibility, costs and security.”</p>
-<div class="warning"><strong>Human approval required:</strong> MACIE C never sends, publishes, or changes your source document. Verify factual claims before using revised marketing materials.</div>
+<div class="warning"><strong>Human approval required:</strong> MACIEC never sends, publishes, or changes your source document. Verify factual claims before using revised marketing materials.</div>
 </div></div>
 <p id="error" role="alert"></p><p id="message" role="status"></p>
-<button id="submit" type="submit">Run independent MACIE C review</button>
+<button id="submit" type="submit">Run independent MACIEC review</button>
 </form></section>
-<section class="card" id="results" aria-live="polite"><h2>MACIE C review results</h2>
+<section class="card" id="results" aria-live="polite"><h2>MACIEC review results</h2>
 <div id="state" class="meta"></div><div class="actions">
 <button type="button" id="txtDownload">Download review (.txt)</button>
 <button type="button" id="jsonDownload">Download full record (.json)</button>
@@ -87,7 +87,7 @@ placeholder="sk-or-v1-..." maxlength="400" required>
 <details><summary>ChatGPT — independent review</summary><pre id="chatgptReview"></pre></details>
 </section>
 {% endif %}
-</main><footer>ActionForge Labs · MACIE C · No automatic publication · Commercial signup not yet released · Controlled pilot access only</footer>
+</main><footer>ActionForge Labs · MACIEC · No automatic publication · Commercial signup not yet released · Controlled pilot access only</footer>
 <script nonce="{{ nonce }}">
 (function(){
 "use strict";
@@ -187,7 +187,7 @@ qs("jsonDownload").addEventListener("click",()=>{
 });
 qs("txtDownload").addEventListener("click",()=>{
  if(!last)return;
- const parts=["MACIE C DOCUMENT REVIEW","STATUS: "+last.status,"CONFIDENCE: "+last.confidence,"","ENHANCED MATERIAL / CONSENSUS",last.synthesized_review||last.raw_fallback||"","DISAGREEMENTS",JSON.stringify(last.divergences||[],null,2),"","CLAUDE",reviews.claude.textContent,"","CHATGPT",reviews.chatgpt.textContent];
+ const parts=["MACIEC DOCUMENT REVIEW","STATUS: "+last.status,"CONFIDENCE: "+last.confidence,"","ENHANCED MATERIAL / CONSENSUS",last.synthesized_review||last.raw_fallback||"","DISAGREEMENTS",JSON.stringify(last.divergences||[],null,2),"","CLAUDE",reviews.claude.textContent,"","CHATGPT",reviews.chatgpt.textContent];
  download("MACIE-C-review.txt",parts.join("\n"),"text/plain");
 });
 })();
