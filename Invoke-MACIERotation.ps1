@@ -9,7 +9,11 @@
 .NOTES
     Run from C:\SageForge\macie or any directory — paths are absolute.
     Requires: OPENROUTER_MGMT_KEY, RENDER_API_KEY, RENDER_SERVICE_ID,
-              RENDER_DEPLOY_HOOK, MACIE_ADMIN_KEY in .env.
+              RENDER_DEPLOY_HOOK, MACIE_ADMIN_KEY,
+              OPENROUTER_KEY_LIMIT_USD, OPENROUTER_KEY_LIMIT_RESET,
+              OPENROUTER_ALLOWED_MODELS, OPENROUTER_ALLOWED_PROVIDERS in .env.
+              OPENROUTER_GUARDRAIL_ID is optional and is stored after first
+              successful guardrail creation.
               OPENROUTER_API_KEY and OPENROUTER_KEY_HASH are optional on
               first run; written back to .env after each successful rotation.
               OPENROUTER_KEY_HASH stores the key's id (OpenRouter's term) used
@@ -85,7 +89,11 @@ if (-not (Test-Path $EnvPath)) { Abort "Cannot find .env at $EnvPath" }
 
 $cfg = Read-EnvFile $EnvPath
 
-foreach ($required in @('OPENROUTER_MGMT_KEY','RENDER_API_KEY','RENDER_SERVICE_ID','RENDER_DEPLOY_HOOK','MACIE_ADMIN_KEY')) {
+foreach ($required in @(
+    'OPENROUTER_MGMT_KEY','RENDER_API_KEY','RENDER_SERVICE_ID','RENDER_DEPLOY_HOOK','MACIE_ADMIN_KEY',
+    'OPENROUTER_KEY_LIMIT_USD','OPENROUTER_KEY_LIMIT_RESET',
+    'OPENROUTER_ALLOWED_MODELS','OPENROUTER_ALLOWED_PROVIDERS'
+)) {
     if (-not $cfg.Contains($required) -or -not $cfg[$required]) {
         Abort "Required variable missing or empty in .env: $required"
     }
@@ -98,6 +106,20 @@ $DeployHook   = $cfg['RENDER_DEPLOY_HOOK']
 $AdminKey     = $cfg['MACIE_ADMIN_KEY']
 $OldKey       = $cfg['OPENROUTER_API_KEY']   # may be absent on first run
 $OldKeyId     = $cfg['OPENROUTER_KEY_HASH']  # stores key id; may be absent on first run
+$GuardrailId  = $cfg['OPENROUTER_GUARDRAIL_ID']
+
+[double]$KeyLimitUsd = 0
+if (-not [double]::TryParse($cfg['OPENROUTER_KEY_LIMIT_USD'], [ref]$KeyLimitUsd) -or $KeyLimitUsd -le 0) {
+    Abort 'OPENROUTER_KEY_LIMIT_USD must be a positive number'
+}
+$KeyLimitReset = $cfg['OPENROUTER_KEY_LIMIT_RESET'].Trim().ToLowerInvariant()
+if ($KeyLimitReset -notin @('daily','weekly','monthly')) {
+    Abort 'OPENROUTER_KEY_LIMIT_RESET must be daily, weekly, or monthly'
+}
+$AllowedModels = @($cfg['OPENROUTER_ALLOWED_MODELS'].Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+$AllowedProviders = @($cfg['OPENROUTER_ALLOWED_PROVIDERS'].Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+if ($AllowedModels.Count -eq 0) { Abort 'OPENROUTER_ALLOWED_MODELS must contain at least one model' }
+if ($AllowedProviders.Count -eq 0) { Abort 'OPENROUTER_ALLOWED_PROVIDERS must contain at least one provider' }
 
 if (-not $OldKey)   { Write-Warn 'OPENROUTER_API_KEY not in .env — old-key revocation will be skipped' }
 if (-not $OldKeyId) { Write-Warn 'OPENROUTER_KEY_HASH not in .env — will search by name for old key id' }
@@ -163,7 +185,12 @@ try {
         -Uri     'https://openrouter.ai/api/v1/keys' `
         -Method  POST `
         -Headers @{ Authorization = "Bearer $MgmtKey"; 'Content-Type' = 'application/json' } `
-        -Body    (ConvertTo-Json @{ name = $KeyLabel } -Compress)
+        -Body    (ConvertTo-Json @{
+            name = $KeyLabel
+            limit = $KeyLimitUsd
+            limit_reset = $KeyLimitReset
+            include_byok_in_limit = $true
+        } -Compress)
 } catch {
     Abort "Failed to create new OpenRouter key: $($_.Exception.Message)"
 }
@@ -183,6 +210,9 @@ Write-Host '══════════════════════�
 Write-Host "  New key label : $KeyLabel"
 Write-Host "  Render service: $ServiceId"
 Write-Host "  Production URL: $MACIEUrl"
+Write-Host "  Hard spend cap: $KeyLimitUsd USD / $KeyLimitReset"
+Write-Host "  Allowed models: $($AllowedModels -join ', ')"
+Write-Host "  Allowed providers: $($AllowedProviders -join ', ')"
 if ($OldKeyId) {
     Write-Host "  Revokes id    : $OldKeyId (old key)"
 } else {
@@ -212,7 +242,63 @@ if ($approval -notmatch '^[Yy]$') {
     exit 0
 }
 
-Write-Audit 'APPROVED' "Rotation approved by Pete for $KeyLabel"
+Write-Audit 'APPROVED' "Rotation approved by Pete for $KeyLabel; hard limit=$KeyLimitUsd USD/$KeyLimitReset"
+
+# ── Step 4b: Enforce native OpenRouter guardrail ─────────────────────────────
+
+if (-not $NewKeyId) {
+    Abort 'New OpenRouter key has no hash/id; cannot attach mandatory guardrail'
+}
+
+Write-Step 'Step 4b — Enforcing native OpenRouter model/provider/budget guardrail'
+$guardrailBody = @{
+    name = 'MACIE-Render-Native-Control'
+    description = 'SageForge native-control boundary for MACIE Render'
+    allowed_models = $AllowedModels
+    allowed_providers = $AllowedProviders
+    limit_usd = $KeyLimitUsd
+    reset_interval = $KeyLimitReset
+}
+
+try {
+    if ($GuardrailId) {
+        $guardrailResp = Invoke-RestMethod `
+            -Uri     "https://openrouter.ai/api/v1/guardrails/$GuardrailId" `
+            -Method  PATCH `
+            -Headers @{ Authorization = "Bearer $MgmtKey"; 'Content-Type' = 'application/json' } `
+            -Body    (ConvertTo-Json $guardrailBody -Depth 5 -Compress)
+    } else {
+        $guardrailResp = Invoke-RestMethod `
+            -Uri     'https://openrouter.ai/api/v1/guardrails' `
+            -Method  POST `
+            -Headers @{ Authorization = "Bearer $MgmtKey"; 'Content-Type' = 'application/json' } `
+            -Body    (ConvertTo-Json $guardrailBody -Depth 5 -Compress)
+        $GuardrailId = $guardrailResp.data.id
+        if (-not $GuardrailId) { throw 'Guardrail creation returned no id' }
+        Set-EnvValue -Path $EnvPath -Key 'OPENROUTER_GUARDRAIL_ID' -Value $GuardrailId
+    }
+
+    Invoke-RestMethod `
+        -Uri     "https://openrouter.ai/api/v1/guardrails/$GuardrailId/assignments/keys" `
+        -Method  POST `
+        -Headers @{ Authorization = "Bearer $MgmtKey"; 'Content-Type' = 'application/json' } `
+        -Body    (ConvertTo-Json @{ key_hashes = @($NewKeyId) } -Compress) | Out-Null
+
+    Write-OK "Native guardrail assigned — id: $GuardrailId"
+    Write-Audit 'NATIVE-CONTROL' "Guardrail=$GuardrailId; limit=$KeyLimitUsd/$KeyLimitReset; models=$($AllowedModels -join ','); providers=$($AllowedProviders -join ',')"
+} catch {
+    Write-Warn "Native-control configuration failed: $($_.Exception.Message)"
+    try {
+        Invoke-RestMethod `
+            -Uri     "https://openrouter.ai/api/v1/keys/$NewKeyId" `
+            -Method  DELETE `
+            -Headers @{ Authorization = "Bearer $MgmtKey" } | Out-Null
+        Write-Warn 'New key revoked because native-control configuration did not complete'
+    } catch {
+        Write-Warn 'New key cleanup also failed; new key must be reviewed before retrying'
+    }
+    Abort 'OpenRouter native controls were not established; production key rotation stopped'
+}
 
 # ── Step 5: Update OPENROUTER_API_KEY on Render ───────────────────────────────
 
