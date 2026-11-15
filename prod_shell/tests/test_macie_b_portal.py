@@ -31,9 +31,9 @@ def test_macie_b_has_its_own_private_product_page():
     with app.test_client() as client:
         response = client.get("/macie/b")
         assert response.status_code == 200
-        assert b"MACIE B" in response.data
+        assert b"MACIEB" in response.data
         assert b"prompt created anywhere" in response.data
-        assert b"MACIE A private SageForge context is never loaded" in response.data
+        assert b"MACIEA private SageForge context is never loaded" in response.data
 
 
 def test_macie_b_fails_closed_when_disabled(monkeypatch):
