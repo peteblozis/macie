@@ -1,4 +1,4 @@
-"""MACIE C authenticated browser acceptance tests.
+"""MACIEC authenticated browser acceptance tests.
 
 Tests run real Flask routing and real session/CSRF logic, but stub AI
 response to avoid network/secret dependency. Independent live-provider
@@ -70,7 +70,7 @@ def test_signin_and_protected_portal(client):
     home = client.get("/macie/c")
     assert home.status_code == 200
     assert b"Sign in" in home.data
-    assert b"Run independent MACIE C review" not in home.data
+    assert b"Run independent MACIEC review" not in home.data
     assert home.headers.get("Content-Security-Policy")
     assert "HttpOnly" not in home.headers.get("Set-Cookie", "")
     unauthorized = client.post("/macie/c/review", json={"document": "hi"})
@@ -81,7 +81,7 @@ def test_signin_and_protected_portal(client):
     csrf = sign_in(client)
     protected = client.get("/macie/c")
     assert protected.status_code == 200
-    assert b"Run independent MACIE C review" in protected.data
+    assert b"Run independent MACIEC review" in protected.data
     assert "HttpOnly" in client.post("/macie/c/login", json={
         "email": "owner@example.com", "password": "owner-pilot-strong-password"
     }).headers.get("Set-Cookie", "")
@@ -136,7 +136,7 @@ def test_real_web_submission_queue_and_owner_separation(client, monkeypatch):
     def fake_review(doc, goal, options=None, *, customer_openrouter_key=None):
         calls.append((doc, goal))
         return {
-            "edition": "MACIE C",
+            "edition": "MACIEC",
             "status": "CONSENSUS_WITH_DIVERGENCES",
             "synthesized_review": "Check all marketing statistics and never guarantee sales outcomes.",
             "divergences": [{"claim": "brochure CTA", "positions": {
