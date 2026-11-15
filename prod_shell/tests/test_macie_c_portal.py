@@ -136,7 +136,7 @@ def test_real_web_submission_queue_and_owner_separation(client, monkeypatch):
     def fake_review(doc, goal, options=None, *, customer_openrouter_key=None):
         calls.append((doc, goal))
         return {
-            "edition": "MACIEC",
+            "edition": "MACIE C",
             "status": "CONSENSUS_WITH_DIVERGENCES",
             "synthesized_review": "Check all marketing statistics and never guarantee sales outcomes.",
             "divergences": [{"claim": "brochure CTA", "positions": {
