@@ -1,0 +1,27 @@
+name: MACIE canonical naming migration verification
+on:
+  push:
+    branches:
+      - dev/canonical-macie-names-20261109
+  pull_request:
+    branches: [master]
+    paths:
+      - "tests/test_canonical_macie_names.py"
+      - "prod_shell/src/**"
+      - "docs/MACIE_PRODUCT_BOUNDARIES_2026.md"
+      - ".github/workflows/macie-canonical-names.yml"
+permissions:
+  contents: read
+jobs:
+  canonical-names:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run canonical product naming regression
+        run: python -m unittest discover -s tests -p test_canonical_macie_names.py -v
+      - name: Check modified Python module syntax
+        run: python -m compileall -q prod_shell/src

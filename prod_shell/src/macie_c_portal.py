@@ -1,6 +1,6 @@
-"""MACIE C authenticated, nonpersistent document review portal.
+"""MACIEC authenticated, nonpersistent document review portal.
 
-The /macie/c routes are separate from private MACIE A. The portal accepts
+The /macie/c routes are separate from private MACIEA. The portal accepts
 pasted text and small DOCX/TXT files without editing Render configuration.
 Results are held in process memory only for 30 minutes; use Download to
 preserve a report. Customer-facing access is OFF until explicitly enabled.
@@ -262,7 +262,7 @@ def _run_job(job_id: str, document: str, goal: str):
 def protect_portal():
     g.macie_c_nonce = secrets.token_urlsafe(18)
     if not _is_ready():
-        return jsonify({"error": "MACIE C login is not yet configured."}), 503
+        return jsonify({"error": "MACIEC login is not yet configured."}), 503
 
 
 @bp.after_request

@@ -1,4 +1,4 @@
-"""MACIE B: origin-independent prompt enhancement by verified Claude + ChatGPT.
+"""MACIEB: origin-independent prompt enhancement by verified Claude + ChatGPT.
 
 No private Core imports or owner credentials. Production requires the buyer's
 OpenRouter completion key, passed for this job only by the commercial vault.
@@ -31,16 +31,16 @@ def enhance_prompt(prompt, *, claude_review, chatgpt_review, synthesize):
         except Exception:
             pass
     if len(results) != 2:
-        return {"product": "MACIE-B", "status": "NON-CONSENSUS",
+        return {"product": "MACIEB", "status": "NON-CONSENSUS",
                 "model_reviews": results, "enhanced_prompt": None}
     try:
         enhanced = synthesize(prompt, results["claude"], results["chatgpt"])
     except Exception:
         enhanced = None
     if not isinstance(enhanced, str) or not enhanced.strip():
-        return {"product": "MACIE-B", "status": "NON-CONSENSUS",
+        return {"product": "MACIEB", "status": "NON-CONSENSUS",
                 "model_reviews": results, "enhanced_prompt": None}
-    return {"product": "MACIE-B", "status": "CONSENSUS",
+    return {"product": "MACIEB", "status": "CONSENSUS",
             "model_reviews": results, "enhanced_prompt": enhanced.strip()}
 
 def _request_model(key, model, instruction, *, transport):

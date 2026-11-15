@@ -1,10 +1,10 @@
-"""Authenticated direct entrance for private MACIE A.
+"""Authenticated direct entrance for private MACIEA.
 
 This is the owner-only fallback for periods when Cloudflare Access is
 misconfigured or unavailable.  It deliberately reuses only the hardened
-password verifier and configured user records from the pilot portal; MACIE A
+password verifier and configured user records from the pilot portal; MACIEA
 does not expose its SageForge context, provider keys, jobs, or results to
-MACIE B/C.
+MACIEB/C.
 """
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ bp = Blueprint("macie_a_portal", __name__, url_prefix="/macie/a")
 
 PAGE_HTML = r"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>MACIE A | SageForge Consensus</title>
+<title>MACIEA | SageForge Consensus</title>
 <style>
 :root{color-scheme:dark;--bg:#090b10;--panel:#121722;--line:#273043;--gold:#d7b75d;--text:#edf1f7;--muted:#9aa5b5;--bad:#ff8c8c;--ok:#62d7aa}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#1b2030 0,#090b10 48%);color:var(--text);font:16px/1.55 system-ui,sans-serif;min-height:100vh}
@@ -32,7 +32,7 @@ h1{font-size:clamp(2rem,7vw,4rem);line-height:1;margin:.6rem 0}.lead{color:var(-
 label{display:block;margin:13px 0 6px;font-weight:700}input,textarea,select{width:100%;background:#0b0f17;color:var(--text);border:1px solid #354158;border-radius:10px;padding:13px;font:inherit}textarea{min-height:150px;resize:vertical}
 button{border:0;border-radius:10px;background:var(--gold);color:#151106;padding:12px 18px;font-weight:800;font-size:1rem;cursor:pointer;margin-top:14px}button:disabled{opacity:.55;cursor:wait}.row{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.models{color:var(--muted);font-size:.9rem}.error{color:var(--bad);white-space:pre-wrap}.status{color:var(--ok)}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#090c12;border:1px solid var(--line);padding:16px;border-radius:10px}.hidden{display:none}footer{color:var(--muted);font-size:.8rem;margin-top:26px}
 </style></head><body><main>
-<div class="private">ActionForge Labs · Owner-only private system</div><div class="brand">MACIE A</div>
+<div class="private">ActionForge Labs · Owner-only private system</div><div class="brand">MACIEA</div>
 <h1>SageForge consensus</h1><p class="lead">Private SFC-powered analysis. Claude and ChatGPT evaluate independently; MACIE reconciles their answers and fails closed unless both lanes and synthesis succeed.</p>
 {% if not email %}
 <section class="card"><h2>Sign in</h2><p class="lead">Use your existing private MACIE pilot credentials. This direct entrance avoids the broken Cloudflare MFA enrollment screen.</p>
@@ -41,12 +41,12 @@ button{border:0;border-radius:10px;background:var(--gold);color:#151106;padding:
 <p id="loginError" class="error" role="alert"></p><button type="submit">Sign in securely</button></form></section>
 {% else %}
 <section class="card"><div class="row"><span class="models">Signed in: {{ email }}</span><button id="logout" type="button">Sign out</button></div>
-<label for="query">Question or objective</label><textarea id="query" maxlength="18000" placeholder="Enter the question, decision, research objective, or problem for MACIE A..."></textarea>
-<div class="row"><span class="models">Claude Sonnet 4.6 · GPT-4.1 · fail-closed consensus</span><button id="run" type="button">Run MACIE A</button></div>
+<label for="query">Question or objective</label><textarea id="query" maxlength="18000" placeholder="Enter the question, decision, research objective, or problem for MACIEA..."></textarea>
+<div class="row"><span class="models">Claude Sonnet 4.6 · GPT-4.1 · fail-closed consensus</span><button id="run" type="button">Run MACIEA</button></div>
 <p id="work" class="status" role="status"></p><p id="error" class="error" role="alert"></p></section>
 <section id="result" class="card hidden"><h2>Consensus result</h2><div id="meta" class="models"></div><h3>Synthesized answer</h3><pre id="answer"></pre><h3>Agreements</h3><pre id="agreements"></pre><h3>Divergences</h3><pre id="divergences"></pre><h3>Rationale</h3><pre id="rationale"></pre></section>
 {% endif %}
-<footer>MACIE A remains private. MACIE B and MACIE C cannot load this context or session.</footer>
+<footer>MACIEA remains private. MACIEB and MACIEC cannot load this context or session.</footer>
 <script nonce="{{ nonce }}">(()=>{"use strict";const $=id=>document.getElementById(id),csrf={{ csrf|tojson }};
 async function api(url,options){const r=await fetch(url,Object.assign({credentials:"same-origin",cache:"no-store"},options||{}));let d;try{d=await r.json()}catch(e){throw Error("Unexpected server response.")}if(!r.ok)throw Error(d.error||("Request failed: "+r.status));return d}
 const login=$("login");if(login)login.addEventListener("submit",async e=>{e.preventDefault();$("loginError").textContent="";try{await api("/macie/a/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:$("email").value,password:$("password").value})});location.assign("/macie/a")}catch(x){$("loginError").textContent=x.message}});
@@ -90,7 +90,7 @@ def _csrf_ok() -> bool:
 def protect_portal():
     g.macie_a_nonce = secrets.token_urlsafe(18)
     if not _cloudflare_user() and not _ready():
-        return jsonify({"error": "MACIE A direct entrance is not configured."}), 503
+        return jsonify({"error": "MACIEA direct entrance is not configured."}), 503
 
 
 @bp.after_request
@@ -157,7 +157,7 @@ def logout():
 @bp.route("/query", methods=["POST"])
 def query():
     if not _current_user():
-        return jsonify({"error": "Sign in before running MACIE A."}), 401
+        return jsonify({"error": "Sign in before running MACIEA."}), 401
     if not _csrf_ok():
         return jsonify({"error": "Invalid CSRF token."}), 403
     data = request.get_json(silent=True) or {}
