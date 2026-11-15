@@ -1,4 +1,4 @@
-"""Acceptance tests for the owner-only direct MACIE A entrance."""
+"""Acceptance tests for the owner-only direct MACIEA entrance."""
 import hashlib
 import json
 
@@ -38,7 +38,7 @@ def test_direct_entrance_requires_signin(client):
     home = client.get("/macie/a")
     assert home.status_code == 200
     assert b"Sign in" in home.data
-    assert b"Run MACIE A" not in home.data
+    assert b"Run MACIEA" not in home.data
     assert client.post("/macie/a/query", json={"query": "private"}).status_code == 401
 
 
@@ -47,8 +47,8 @@ def test_only_macie_a_allowlist_can_sign_in(client):
     assert denied.status_code == 401
     sign_in(client)
     home = client.get("/macie/a")
-    assert b"Run MACIE A" in home.data
-    assert b"MACIE B and MACIE C cannot load this context" in home.data
+    assert b"Run MACIEA" in home.data
+    assert b"MACIEB and MACIEC cannot load this context" in home.data
 
 
 def test_consensus_is_fail_closed(client, monkeypatch):
